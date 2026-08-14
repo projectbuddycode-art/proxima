@@ -1,0 +1,18 @@
+import { NextResponse } from 'next/server';
+import { getDb, initDb } from '@/lib/db';
+import { ProximaCommanderEngine } from '@/lib/commander/engine';
+import { GeographicExpansionEngine } from '@/lib/commander/expansion';
+
+export async function GET() {
+  initDb();
+  const evaluation = ProximaCommanderEngine.evaluateSystemState();
+  const cityMatrix = GeographicExpansionEngine.generateExpansionMatrix();
+
+  return NextResponse.json({
+    target: evaluation.target,
+    gapAnalysis: evaluation.gapAnalysis,
+    tasks: evaluation.prioritizedTasks,
+    cityMatrix,
+    summary: evaluation.summary
+  });
+}

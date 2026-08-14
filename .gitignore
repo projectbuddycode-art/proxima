@@ -1,0 +1,31 @@
+# Dependencies
+/node_modules
+/.pnpm-store
+
+# Next.js Build Artifacts
+/.next/
+/out/
+/build
+/dist
+
+# Local Environment Variables & Secrets
+.env
+.env*.local
+.env.production
+.env.development
+
+# Proxima Local Database & State Files
+/db.json
+/proxima-logs/
+/scratch/
+*.log
+
+# Large Datasets & OpenStreetMap PBF files
+*.osm.pbf
+*.pbf
+
+# OS & IDE Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

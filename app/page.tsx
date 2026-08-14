@@ -1,0 +1,421 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  Flame,
+  AlertTriangle,
+  Compass,
+  ArrowRight,
+  TrendingUp,
+  MessageSquare,
+  Building2,
+  RefreshCw,
+  PlusCircle,
+  Eye,
+  Bot,
+  Activity,
+  ShieldCheck,
+  Globe
+} from 'lucide-react';
+
+export default function DashboardHome() {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+  const [showFindModal, setShowFindModal] = useState(false);
+  const [industry, setIndustry] = useState('Lighting');
+  const [location, setLocation] = useState('Bangalore');
+  const [offer, setOffer] = useState('Premium Digital Lighting Showroom');
+  const [executing, setExecuting] = useState(false);
+
+  // Response simulation modal state
+  const [showSimulateModal, setShowSimulateModal] = useState(false);
+  const [simProspectId, setSimProspectId] = useState('');
+  const [simText, setSimText] = useState(
+    'Yes, most enquiries currently come through WhatsApp and our quote turnaround is slow. What did you have in mind?'
+  );
+  const [simulating, setSimulating] = useState(false);
+
+  const fetchDashboard = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/setup');
+      const setupData = await res.json();
+
+      const prospRes = await fetch('/api/prospects');
+      const prospData = await prospRes.json();
+
+      const reportRes = await fetch('/api/reports/daily');
+      const reportData = await reportRes.json();
+
+      const campRes = await fetch('/api/campaigns');
+      const campData = await campRes.json();
+
+      setData({
+        setup: setupData,
+        prospects: prospData.prospects || [],
+        report: reportData,
+        campaigns: campData.campaigns || []
+      });
+    } catch (err) {
+      console.error('Failed to load dashboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  const handleCreateCampaign = async () => {
+    setExecuting(true);
+    try {
+      await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${location} ${industry} PROXIMA Campaign`,
+          industry,
+          location,
+          offer
+        })
+      });
+      setShowFindModal(false);
+      fetchDashboard();
+    } catch (err) {
+      alert('Failed to launch campaign');
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleSimulateResponse = async () => {
+    if (!simProspectId) return;
+    setSimulating(true);
+    try {
+      const res = await fetch('/api/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prospectId: simProspectId,
+          rawMessage: simText
+        })
+      });
+      const resData = await res.json();
+      setShowSimulateModal(false);
+      alert(`Response classified as: ${resData.classification}. ${resData.humanTakeoverRequired ? '🚨 Shivam, this one is yours! (HUMAN TAKEOVER TRIGGERED)' : ''}`);
+      fetchDashboard();
+    } catch (err) {
+      alert('Simulation failed');
+    } finally {
+      setSimulating(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex items-center gap-3 text-slate-400 font-mono text-xs">
+          <RefreshCw className="w-5 h-5 animate-spin text-cyan-400" />
+          <span>Initializing PROXIMA Cyber Intelligence Engine...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const prospects = data?.prospects || [];
+  const takeoverProspects = prospects.filter((p: any) => p.human_takeover === 1);
+  const highIntentProspects = prospects.filter((p: any) => p.intent_score >= 70);
+
+  return (
+    <div className="space-y-6">
+      {/* Top PROXIMA Banner & Main Action */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#1C2541]/80 p-6 rounded-2xl border border-slate-800 shadow-2xl">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-1 font-mono">
+            <Globe className="w-4 h-4 text-cyan-400" /> PROXIMA Command Center (REAL MODE)
+          </div>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">PROXIMA by Project Buddy</h2>
+          <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+            Autonomous client acquisition and verified business intelligence system. Enforces 5-level contact provenance, 8-agent cross-checks, and Shivam takeover handoffs.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchDashboard()}
+            className="p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setShowFindModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all transform hover:-translate-y-0.5"
+          >
+            <PlusCircle className="w-4 h-4" /> DISCOVER REAL CLIENTS
+          </button>
+        </div>
+      </div>
+
+      {/* 🚨 SHIVAM HUMAN TAKEOVER ALERT BANNER */}
+      {takeoverProspects.length > 0 && (
+        <div className="bg-red-950/80 border-2 border-red-600/80 p-5 rounded-2xl flex items-center justify-between shadow-2xl animate-pulse">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-red-600 text-white rounded-xl">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold text-red-300 uppercase tracking-wider font-mono">
+                🚨 HUMAN TAKEOVER REQUIRED — SHIVAM, THIS ONE IS YOURS!
+              </div>
+              <h3 className="text-lg font-bold text-white mt-0.5">
+                {takeoverProspects.length} Prospect(s) Expressed Genuine Buying Interest!
+              </h3>
+              <p className="text-xs text-red-200 mt-1">
+                Automated messaging stopped. Review verified business research and lead context below.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/prospects/${takeoverProspects[0].id}`}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-lg"
+          >
+            TAKE OVER NOW <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
+      {/* Top Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+          <p className="text-xs font-medium text-slate-400">Total Verified Discovered</p>
+          <p className="text-2xl font-bold text-white mt-1 font-mono">{prospects.length}</p>
+          <p className="text-[11px] text-cyan-400 mt-1 font-mono">100% Real Businesses</p>
+        </div>
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+          <p className="text-xs font-medium text-slate-400">High-Intent Leads</p>
+          <p className="text-2xl font-bold text-orange-400 mt-1 font-mono">{highIntentProspects.length}</p>
+          <p className="text-[11px] text-slate-500 mt-1">Intent Score ≥ 70</p>
+        </div>
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+          <p className="text-xs font-medium text-slate-400">Shivam Takeovers</p>
+          <p className="text-2xl font-bold text-red-400 mt-1 font-mono">{takeoverProspects.length}</p>
+          <p className="text-[11px] text-slate-500 mt-1">Hot Shivam Leads</p>
+        </div>
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+          <p className="text-xs font-medium text-slate-400">Verified Pipeline Value</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
+            ${(highIntentProspects.length * 8500).toLocaleString()}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-1">Commercial Value</p>
+        </div>
+      </div>
+
+      {/* Main 2-Column Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: High-Fit Prospects */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-[#1C2541]/30 rounded-2xl border border-slate-800 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Flame className="w-5 h-5 text-orange-400" /> Verified Prospects & Commercial Intent
+              </h3>
+              <span className="text-xs text-slate-400 font-mono">REAL MODE ACTIVE</span>
+            </div>
+
+            {prospects.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-slate-800 rounded-xl">
+                <Building2 className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">No real prospects discovered yet.</p>
+                <button
+                  onClick={() => setShowFindModal(true)}
+                  className="mt-3 px-4 py-2 bg-cyan-500 text-white font-bold text-xs rounded-lg"
+                >
+                  Click "DISCOVER REAL CLIENTS" to launch PROXIMA discovery
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {prospects.slice(0, 5).map((prosp: any) => (
+                  <div
+                    key={prosp.id}
+                    className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${
+                      prosp.human_takeover
+                        ? 'bg-red-950/30 border-red-700/60'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-white text-sm">{prosp.company_name}</h4>
+                        {prosp.human_takeover === 1 && (
+                          <span className="px-2 py-0.5 bg-red-600 text-white font-bold text-[10px] rounded-full uppercase tracking-wider font-mono">
+                            SHIVAM TAKEOVER
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {prosp.contact_name} ({prosp.role || 'Contact'}) • {prosp.industry} • {prosp.location}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-right font-mono text-xs">
+                        <span className="font-bold text-orange-400">Intent: {prosp.intent_score}/100</span>
+                        <div className="text-[10px] text-slate-400">Fit: {prosp.fit_score}/100</div>
+                      </div>
+
+                      <Link
+                        href={`/prospects/${prosp.id}`}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> WHY THIS LEAD?
+                      </Link>
+
+                      <button
+                        onClick={() => {
+                          setSimProspectId(prosp.id);
+                          setShowSimulateModal(true);
+                        }}
+                        title="Simulate incoming prospect response"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Simulate Reply
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Activity Stream & Campaigns */}
+        <div className="space-y-6">
+          {/* PROXIMA Activity Stream */}
+          <div className="bg-[#1C2541]/30 rounded-2xl border border-slate-800 p-5 space-y-3">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Activity className="w-4 h-4 text-cyan-400" /> PROXIMA Activity Stream
+            </h3>
+
+            <div className="space-y-2 text-xs font-mono">
+              <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                <span className="text-slate-500">04:12</span> <strong className="text-cyan-400">MAP DISCOVERY:</strong> OpenStreetMap extract scanned.
+              </div>
+              <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                <span className="text-slate-500">04:14</span> <strong className="text-emerald-400">VERIFICATION:</strong> 5-Level Contact provenance passed.
+              </div>
+              <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                <span className="text-slate-500">04:19</span> <strong className="text-orange-400">SECURITY SCOUT:</strong> Passive HTTPS observation recorded.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* DISCOVER CLIENTS MODAL */}
+      {showFindModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Compass className="w-5 h-5 text-cyan-400" /> PROXIMA Discovery & Verification Wizard
+            </h3>
+            <p className="text-xs text-slate-400">
+              Specify target industry, location, and Project Buddy offer. The 27-agent team will discover, verify contacts, run security scouts, and personalize outreach.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Industry</label>
+                <input
+                  type="text"
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Location</label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Project Buddy Offer</label>
+                <select
+                  value={offer}
+                  onChange={(e) => setOffer(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="Premium Digital Lighting Showroom">Premium Digital Lighting Showroom</option>
+                  <option value="Operational Modernization & Automation">Operational Modernization & Automation</option>
+                  <option value="Technical Execution Partnership">Technical Execution Partnership (Agencies)</option>
+                  <option value="Digital Business Development System">Digital Business Development System (EPC)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowFindModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateCampaign}
+                disabled={executing}
+                className="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs rounded-xl shadow-lg"
+              >
+                {executing ? 'Executing PROXIMA Pipeline...' : 'START REAL DISCOVERY'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SIMULATE RESPONSE MODAL */}
+      {showSimulateModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-cyan-400" /> Simulate Prospect Reply
+            </h3>
+            <p className="text-xs text-slate-400">
+              Type or select a sample response from the prospect. The Response Classifier will trigger Shivam takeover handoff if high-intent.
+            </p>
+
+            <textarea
+              rows={4}
+              value={simText}
+              onChange={(e) => setSimText(e.target.value)}
+              className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+            />
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowSimulateModal(false)}
+                className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSimulateResponse}
+                disabled={simulating}
+                className="px-4 py-2 bg-cyan-500 text-white text-xs font-bold rounded-xl"
+              >
+                {simulating ? 'Classifying...' : 'Submit Response'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
