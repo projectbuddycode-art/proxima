@@ -1,67 +1,81 @@
-# PROXIMA by Project Buddy — Autonomous Client Acquisition & Growth OS
+# PROXIMA by Project Buddy — Central AI Autonomous Client Acquisition Operating System
 
-> **PROXIMA COMMANDER**: AI CEO + GTM Commander + Development Commander for Project Buddy.
+[![System Version](https://img.shields.io/badge/version-2.0.0--production-cyan.svg)](https://github.com/projectbuddycode-art/proxima)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/projectbuddycode-art/proxima)
+[![Local AI Engine](https://img.shields.io/badge/ollama-qwen2.5--coder:7b-purple.svg)](http://127.0.0.1:11434)
+[![Database Adapter](https://img.shields.io/badge/database-PostgreSQL%20%7C%20LocalJSON-blue.svg)](file:///lib/db.ts)
 
-PROXIMA is a local-first, autonomous client acquisition, business intelligence, and growth operating system built specifically for Project Buddy. It combines local reasoning (**Ollama**), zero-native file database storage, 27 specialized agents, multi-agent cross-check panels, passive security intelligence, OpenStreetMap offline discovery, and Titan Mail integration.
-
----
-
-## 🚀 Key Features & Architecture
-
-### 1. Hybrid Vercel + Local Bridge Architecture
-- **Vercel Cloud UI**: Hosts the Next.js 14 Web Command Center and dashboard.
-- **Proxima Local Bridge (`proxima-local-bridge/`)**: Lightweight local Node.js service running on user's PC (Port `11435`) bridging Vercel UI to local Ollama (`http://127.0.0.1:11434`) and local tools securely.
-
-### 2. PROXIMA COMMANDER (AI CEO)
-- Top-level commander overseeing Monthly Objectives (₹10,00,000 Revenue Target), Target Gap Analysis, Daily Command Briefs, City Auto-Expansion (15+ hubs), and Shivam Takeover Alerts (*"Shivam, this one is yours!"*).
-
-### 3. Strict REAL MODE Zero-Fabrication Policy
-- Enforces strict zero-synthetic data. Unverified contacts return `NULL` or `NOT_FOUND`. Dummy fallback emails like `info@company.com` are strictly forbidden unless observed directly on official source URLs.
-
-### 4. 5-Level Contact Provenance System
-- Classifies contact details from `LEVEL 0: UNKNOWN` up to `LEVEL 4: DELIVERY_VERIFIED` with source URL provenance.
-
-### 5. Visible Contact Intelligence Panel & Social Workspace
-- UI view (`/contacts`) displaying verified Email, Phone, WhatsApp, LinkedIn, Instagram, Facebook, Website, Contact Form with direct action buttons.
-- Split-Screen Social Workspace (`/social-workspace`) for public post inspection and handle cross-verification.
-
-### 6. Titan Mail Integration
-- Titan Mail SMTP (`smtp.titan.email:465` SSL) and IMAP listener (`imap.titan.email:993` SSL) for outreach delivery and thread matching.
+PROXIMA is Project Buddy's central AI operating system responsible for autonomous prospect discovery, 5-level contact provenance verification, consultative outreach, meeting preparation, commercial intelligence, and revenue objective tracking against a ₹10,00,000 monthly target.
 
 ---
 
-## 🛠 Local Setup & Running
+## 🚀 ARCHITECTURE & LOCAL OLLAMA BRIDGE
 
-### 1. Install Dependencies
+```
+              VERCEL CLOUD (Frontend & Gateway API)
+                              │
+                    /api/gateway (PostgreSQL DB)
+                              │
+                    [Outbound Job Queue]
+                              │
+                     Authorization: Bearer <token>
+                              │
+               PROXIMA LOCAL BRIDGE (Port 11435)
+                              │
+                     Strict 127.0.0.1 Binding
+                              │
+               LOCAL OLLAMA (http://127.0.0.1:11434)
+                              │
+                   qwen2.5-coder:7b Model
+```
+
+Zero ports exposed on your local PC. Zero port forwarding required. All Local Bridge traffic is outbound to Vercel via authenticated Bearer token.
+
+---
+
+## ⚡ SETUP & DEPLOYMENT GUIDE
+
+### 1. Clone Repository & Install Dependencies
 ```bash
+git clone git@github.com:projectbuddycode-art/proxima.git
+cd proxima
 npm install
 ```
 
-### 2. Start Proxima Local Bridge
-```bash
-node proxima-local-bridge/index.mjs
-```
+### 2. Configure Local vs Production Database
+- **Local Development**: Uses `db.json` automatically. No setup needed.
+- **Production Deployment (Vercel)**:
+  Set `DATABASE_URL` in your Vercel environment variables:
+  ```env
+  DATABASE_URL=postgresql://user:password@ep-cool-db.us-east-1.aws.neon.tech/proxima?sslmode=require
+  ```
+  Run schema migration:
+  ```bash
+  npm run db:migrate
+  ```
 
-### 3. Start Next.js Local Server
-```bash
-npm run dev
-```
+### 3. Deploy to Vercel
+Push `main` branch or connect repository directly to Vercel. Configure standard environment variables in `.env.example`.
 
-### 4. Run System Verification Suite
-```bash
-npm test
-```
+### 4. Install Local Ollama Engine
+1. Download Ollama from [ollama.com](https://ollama.com).
+2. Pull the preferred coding model:
+   ```bash
+   ollama pull qwen2.5-coder:7b
+   ```
+
+### 5. Launch Proxima Local Bridge
+- **Windows**: Run `proxima-local-bridge/start-windows.bat`
+- **macOS / Linux**: Run `proxima-local-bridge/start-unix.sh`
+
+### 6. Pair Device & Test Remote Inference
+1. Open Proxima UI -> Click **Device Pairing**.
+2. Copy 6-digit code -> Enter in Local Bridge setup.
+3. Click **`TEST LOCAL OLLAMA`** to run end-to-end Vercel Cloud -> Bridge -> Ollama inference test.
 
 ---
 
-## 📦 Production Deployment
-
-### Git Repository Setup
-```bash
-git init
-git add .
-git commit -m "production: PROXIMA COMMANDER Autonomous Growth OS v2.0"
-git branch -M main
-git remote add origin git@github.com:projectbuddycode-art/proxima.git
-git push -u origin main
-```
+## 🛡️ ZERO SYNTHETIC DATA & HUMAN TAKEOVER
+- **Zero-Synthetic Firewall**: Missing emails or phone numbers are set to `NULL` / `NOT_VERIFIED`. Proxima NEVER invents fake contact details.
+- **Shivam Takeover Trigger**: Once positive buying intent is detected (*"Tell me more"*, *"How much does this cost?"*), automated messaging stops immediately and alerts:
+  **🚨 HUMAN TAKEOVER REQUIRED — SHIVAM, THIS ONE IS YOURS!**

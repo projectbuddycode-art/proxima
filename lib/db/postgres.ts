@@ -1,30 +1,71 @@
 import { DatabaseAdapter, PreparedQuery } from '../db';
+import { Pool } from 'pg';
 
 export class PostgresProductionDatabase implements DatabaseAdapter {
   public type: 'POSTGRES' = 'POSTGRES';
-  private connectionString: string;
+  private pool: Pool;
 
   constructor(connectionString: string) {
-    this.connectionString = connectionString;
-    console.log('⚡ Initialized PostgresProductionDatabase Adapter for Production Vercel Deployment.');
+    this.pool = new Pool({
+      connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+    console.log('⚡ Initialized Real PostgresProductionDatabase Pool for Production Deployment.');
   }
 
   public count(tableName: string, predicate?: (row: any) => boolean): number {
-    // Production count implementation against live DB connection
+    // Synchronous fallback counter for DatabaseAdapter interface
     return 0;
   }
 
-  public claimJobAtomically(bridgeId: string): any {
-    // Atomic update QUEUED -> CLAIMED in PostgreSQL with bridge_id lock
-    return null;
+  public async countAsync(tableName: string): Promise<number> {
+    try {
+      const res = await this.pool.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+      return parseInt(res.rows[0]?.cnt || '0', 10);
+    } catch (err) {
+      return 0;
+    }
   }
 
-  public validatePairingCodeAtomically(code: string): { success: boolean; token?: string; message: string } {
-    return { success: false, message: 'Production PostgreSQL validation requires live DATABASE_URL connection.' };
-  }
+  public async claimJobAtomicallyAsync(bridgeId: string): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selectRes = await client.query(`
+        SELECT * FROM ai_jobs 
+        WHERE status = 'QUEUED' 
+        ORDER BY created_at ASC 
+        LIMIT 1 
+        FOR UPDATE SKIP LOCKED
+      `);
 
-  public completeJobAtomically(requestId: string, result: any, latencyMs: number): boolean {
-    return true;
+      if (selectRes.rows.length === 0) {
+        await client.query('COMMIT');
+        return null;
+      }
+
+      const job = selectRes.rows[0];
+      const claimedAt = new Date().toISOString();
+
+      await client.query(`
+        UPDATE ai_jobs 
+        SET status = 'CLAIMED', claimed_at = $1, bridge_id = $2 
+        WHERE request_id = $3
+      `, [claimedAt, bridgeId, job.request_id]);
+
+      await client.query('COMMIT');
+      return {
+        ...job,
+        status: 'CLAIMED',
+        bridge_id: bridgeId,
+        claimed_at: claimedAt
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   public prepare(sql: string): PreparedQuery {

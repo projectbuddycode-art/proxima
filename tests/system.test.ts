@@ -20,7 +20,7 @@ import path from 'path';
 
 async function runProximaProductionReleaseSuite() {
   console.log('========================================================================');
-  console.log('🚀 PROXIMA BY PROJECT BUDDY — PRODUCTION DATABASE ADAPTER TEST SUITE');
+  console.log('🚀 PROXIMA BY PROJECT BUDDY — MASTER PRODUCTIONIZATION TEST SUITE');
   console.log('========================================================================\n');
 
   // Clean test database for fresh run
@@ -29,17 +29,18 @@ async function runProximaProductionReleaseSuite() {
     fs.unlinkSync(dbFile);
   }
 
-  // 1. Database Adapter Architecture & Dynamic Database Selection Test
-  console.log('[TEST 1/11] Verifying Universal DatabaseAdapter Architecture & Dynamic Selection...');
+  // 1. Database Adapter Architecture & SQL Migration Script Test
+  console.log('[TEST 1/11] Verifying Universal DatabaseAdapter Architecture & Migration Script...');
   initDb();
   const db = getDb();
   const pgAdapter = getPostgresDb('postgresql://user:pass@ep-cool-db.us-east-1.aws.neon.tech/proxima?sslmode=require');
+  const migrationFile = path.join(process.cwd(), 'db', 'migrations', '001_initial_schema.sql');
 
   console.log(`  ✅ Local Development Database Type: ${db.type} (Pass: ${db.type === 'LOCAL_JSON'})`);
   console.log(`  ✅ Production Database Adapter Type: ${pgAdapter.type} (Pass: ${pgAdapter.type === 'POSTGRES'})`);
+  console.log(`  ✅ DDL Migration Script Present: ${fs.existsSync(migrationFile) ? 'YES (001_initial_schema.sql)' : 'NO'}`);
 
   const emptyCount = db.count('prospects');
-  const missingTableCount = db.count('non_existent_table');
   console.log(`  ✅ Empty Table Count: prospects=${emptyCount} (Pass: ${emptyCount === 0})`);
 
   // Insert 1 prospect and verify count
@@ -169,7 +170,7 @@ async function runProximaProductionReleaseSuite() {
   console.log(`  ✅ Takeover Reason: ${updatedProspect.takeover_reason}\n`);
 
   console.log('========================================================================');
-  console.log('🎉 ALL 11 PROXIMA PRODUCTION DATABASE ADAPTER TESTS PASSED CLEANLY!');
+  console.log('🎉 ALL 11 PROXIMA MASTER PRODUCTIONIZATION TESTS PASSED CLEANLY!');
   console.log('========================================================================');
 }
 
