@@ -41,8 +41,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       campaignId,
-      prospectsDiscovered: processed.length,
-      processed
+      prospectsDiscovered: processed.candidatesFound,
+      ...processed
     });
   } catch (err: any) {
     console.error('[CAMPAIGNS API ERROR]', err.message);

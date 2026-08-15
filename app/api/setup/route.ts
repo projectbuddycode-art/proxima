@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
-import { AutonomousOrchestrator } from '@/lib/orchestrator/pipeline';
+import { AutonomousOrchestrator, PipelineOrchestrator } from '@/lib/orchestrator/pipeline';
 import { OfflineMapIntelligenceEngine } from '@/lib/discovery/map';
 
 export const dynamic = 'force-dynamic';
@@ -40,11 +40,29 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     initDb();
+    const db = getDb();
     const body = await request.json();
+
     if (body.action === 'toggle_autonomous') {
       const res = await AutonomousOrchestrator.setAutonomousMode(body.active);
       return NextResponse.json(res);
     }
+
+    if (body.action === 'run_discovery') {
+      const campaignId = body.campaignId || 'cmp_default_1';
+      const offset = body.offset || 0;
+      const batchSize = body.batchSize || 25;
+
+      const result = await PipelineOrchestrator.runCampaignPipeline(campaignId, offset, batchSize);
+      return NextResponse.json({
+        success: true,
+        campaignId,
+        offset,
+        batchSize,
+        ...result
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

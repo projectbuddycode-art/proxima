@@ -62,9 +62,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      classification: result.classification.classification,
+      classification: result.classification,
       humanTakeoverRequired: result.needsHumanTakeover,
-      reason: result.classification.reason,
+      reason: `Response classified as ${result.classification}`,
       copilot
     });
   } catch (err: any) {

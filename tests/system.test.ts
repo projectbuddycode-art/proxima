@@ -156,13 +156,13 @@ async function runProximaProductionReleaseSuite() {
   `, [campaignId, 'Bangalore Lighting PROXIMA Release Campaign', 'Lighting Showroom', 'Bangalore', 'Managing Director', 'Premium Digital Lighting Showroom', 70, 70, 'ACTIVE']);
 
   const results = await PipelineOrchestrator.runCampaignPipeline(campaignId);
-  const targetProspectId = results[0].prospectId;
+  const targetProspectId = results.processed[0].id;
   const prospect = await db.queryOneAsync('SELECT p.*, c.name as company_name FROM prospects p JOIN companies c ON p.company_id = c.id WHERE p.id = ?', [targetProspectId]);
 
   const interestedText = 'Yes, most enquiries currently come through WhatsApp and our quote turnaround is slow. What did you have in mind?';
   const outcome = await PipelineOrchestrator.processIncomingResponse((prospect as any).id, interestedText, 'EMAIL');
 
-  console.log(`  ✅ Response Classification: ${outcome.classification.classification}`);
+  console.log(`  ✅ Response Classification: ${outcome.classification}`);
   console.log(`  ✅ Shivam Takeover Triggered: ${outcome.needsHumanTakeover ? 'YES (🚨 Shivam, this one is yours!)' : 'NO'}`);
 
   const updatedProspect = await db.queryOneAsync('SELECT * FROM prospects WHERE id = ?', [(prospect as any).id]);

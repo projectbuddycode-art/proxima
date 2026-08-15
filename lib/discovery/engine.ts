@@ -12,27 +12,32 @@ export interface DiscoveredProspect {
   source_strategy: string;
   raw_signals: string[];
   source_url?: string;
+  osm_id?: string;
 }
 
 export class DiscoveryEngine {
   /**
-   * Discovers real prospects for campaign using public OpenStreetMap registry
+   * Discovers real prospects for campaign using public OpenStreetMap registry with real offset pagination
    */
-  static async discoverProspectsForCampaign(campaign: {
-    id: string;
-    industry?: string;
-    location?: string;
-    offer?: string;
-    min_intent?: number;
-    min_fit?: number;
-  }): Promise<DiscoveredProspect[]> {
+  static async discoverProspectsForCampaign(
+    campaign: {
+      id: string;
+      industry?: string;
+      location?: string;
+      offer?: string;
+      min_intent?: number;
+      min_fit?: number;
+    },
+    offset = 0,
+    batchSize = 25
+  ): Promise<DiscoveredProspect[]> {
     const prospects: DiscoveredProspect[] = [];
     const industry = campaign?.industry || 'Commercial';
     const location = campaign?.location || 'Bangalore';
 
-    console.log(`[DISCOVERY ENGINE] Querying OpenStreetMap public registry for ${industry} in ${location}...`);
+    console.log(`[DISCOVERY ENGINE] Querying OpenStreetMap public registry for ${industry} in ${location} (Offset: ${offset}, Batch: ${batchSize})...`);
 
-    const osmRecords = await OfflineMapIntelligenceEngine.discoverFromMapData(industry, location);
+    const osmRecords = await OfflineMapIntelligenceEngine.discoverFromMapData(industry, location, offset, batchSize);
 
     for (const record of osmRecords) {
       prospects.push({
@@ -43,9 +48,10 @@ export class DiscoveryEngine {
         contact_name: 'Verified Business Contact',
         role: 'Director / Founder',
         email: undefined,
-        phone: undefined,
+        phone: record.phone || undefined,
         source_strategy: `OpenStreetMap Public Registry`,
         source_url: record.source_url,
+        osm_id: record.osm_id,
         raw_signals: [
           `Discovered on OpenStreetMap public registry (${record.source_url})`,
           `Category: ${record.category}`,

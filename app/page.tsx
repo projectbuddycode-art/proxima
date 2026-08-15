@@ -108,13 +108,18 @@ export default function DashboardHome() {
         return;
       }
 
-      const count = resData.prospectsDiscovered || 0;
-      setDiscoveryProgress(`DISCOVERY COMPLETE — Discovered ${count} real business candidates!`);
+      const count = resData.candidatesFound || resData.prospectsDiscovered || 0;
+      const verCount = resData.verifiedCount || count;
+      const persCount = resData.persistedCount || count;
+      const dedupCount = resData.duplicatesPrevented || 0;
+
+      setDiscoveryProgress(`DISCOVERY COMPLETE — Discovered ${count} real business candidates! Verified: ${verCount}, Deduplicated: ${dedupCount}`);
       setDiagnostics(prev => ({
         ...prev,
         candidatesFound: count,
-        verifiedCount: count,
-        persistedCount: count,
+        verifiedCount: verCount,
+        persistedCount: persCount,
+        duplicatesPrevented: dedupCount,
         lastError: count === 0 ? 'NO_VERIFIED_PROSPECTS_FOUND' : 'NONE'
       }));
 

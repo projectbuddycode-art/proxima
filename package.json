@@ -9,7 +9,7 @@
     "start": "next start",
     "db:init": "tsx lib/db.ts",
     "db:migrate": "tsx lib/db/migrate.ts",
-    "test": "tsx tests/firewall.test.ts && tsx tests/connections.test.ts && tsx tests/revenue_intelligence.test.ts && tsx tests/phase2.test.ts && tsx tests/system.test.ts"
+    "test": "tsx tests/firewall.test.ts && tsx tests/forensic_audit.test.ts && tsx tests/connections.test.ts && tsx tests/revenue_intelligence.test.ts && tsx tests/phase2.test.ts && tsx tests/system.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
