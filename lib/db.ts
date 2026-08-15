@@ -15,7 +15,12 @@ export interface PreparedQuery {
 
 export interface DatabaseAdapter {
   type: 'LOCAL_JSON' | 'POSTGRES';
-  prepare(sql: string): PreparedQuery;
+  
+  // Clean 100% Async Query API
+  queryOneAsync<T = any>(sql: string, params?: any[]): Promise<T | null>;
+  queryAllAsync<T = any>(sql: string, params?: any[]): Promise<T[]>;
+  executeAsync(sql: string, params?: any[]): Promise<{ changes: number }>;
+
   count(tableName: string, predicate?: (row: any) => boolean): number;
   countAsync(tableName: string, predicate?: (row: any) => boolean): Promise<number>;
   createPairingCodeAsync(): Promise<string>;
@@ -27,6 +32,8 @@ export interface DatabaseAdapter {
   completeJobAtomicallyAsync(requestId: string, result: any, latencyMs: number, bridgeId: string): Promise<boolean>;
   getJobStatusAsync(requestId: string): Promise<any>;
   verifyBearerTokenAsync(token: string): Promise<any>;
+
+  prepare(sql: string): PreparedQuery;
 }
 
 export interface AgentRecord {
@@ -116,7 +123,16 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       'strategy_experiments',
       'bridge_sessions',
       'ai_jobs',
-      'pairing_codes'
+      'pairing_codes',
+      'agents',
+      'strategies',
+      'experiments',
+      'research',
+      'opportunities',
+      'messages',
+      'followups',
+      'sources',
+      'proxima_logs'
     ];
     let changed = false;
     for (const t of tables) {
@@ -126,6 +142,24 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       }
     }
     if (changed) this.saveData();
+  }
+
+  public async queryOneAsync<T = any>(sql: string, params: any[] = []): Promise<T | null> {
+    const prep = this.prepare(sql);
+    const res = prep.get(...params);
+    return (res !== undefined && res !== null) ? (res as T) : null;
+  }
+
+  public async queryAllAsync<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+    const prep = this.prepare(sql);
+    const res = prep.all(...params);
+    return (Array.isArray(res) ? res : []) as T[];
+  }
+
+  public async executeAsync(sql: string, params: any[] = []): Promise<{ changes: number }> {
+    const prep = this.prepare(sql);
+    const res = prep.run(...params);
+    return { changes: res.changes || 1 };
   }
 
   public count(tableName: string, predicate?: (row: any) => boolean): number {

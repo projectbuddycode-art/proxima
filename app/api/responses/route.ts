@@ -3,6 +3,8 @@ import { getDb, initDb } from '@/lib/db';
 import { PipelineOrchestrator } from '@/lib/orchestrator/pipeline';
 import { runResponseCopilot } from '@/lib/ai/agents';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   initDb();
   const db = getDb();
@@ -20,30 +22,30 @@ export async function POST(req: Request) {
     // Fetch copilot guidance if human takeover triggered
     let copilot = null;
     if (result.needsHumanTakeover) {
-      const prospect = db.prepare('SELECT company_id FROM prospects WHERE id = ?').get(prospectId) as any;
-      const research = db.prepare('SELECT * FROM research WHERE company_id = ?').get(prospect.company_id) as any;
+      const prospect = await db.queryOneAsync('SELECT company_id FROM prospects WHERE id = ?', [prospectId]);
+      const research = (prospect && (prospect as any).company_id) ? await db.queryOneAsync('SELECT * FROM research WHERE company_id = ?', [(prospect as any).company_id]) : null;
       if (research) {
         copilot = await runResponseCopilot(rawMessage, {
-          company_name: research.company_name || 'Prospect Company',
+          company_name: (research as any).company_name || 'Prospect Company',
           website: '',
           industry: '',
           location: '',
-          company_summary: research.reason_to_contact_now || '',
+          company_summary: (research as any).reason_to_contact_now || '',
           decision_makers: [],
           products_services: [],
           target_customers: [],
           business_model: '',
-          observable_website_findings: JSON.parse(research.observable_website_findings || '[]'),
+          observable_website_findings: JSON.parse((research as any).observable_website_findings || '[]'),
           social_signals: [],
           hiring_signals: [],
           expansion_signals: [],
           review_signals: [],
           buying_signals: [],
-          pain_hypotheses: JSON.parse(research.pain_hypotheses || '[]'),
+          pain_hypotheses: JSON.parse((research as any).pain_hypotheses || '[]'),
           commercial_opportunities: [],
-          recommended_project_buddy_capability: research.recommended_project_buddy_capability || '',
-          recommended_offer: research.recommended_offer || '',
-          reason_to_contact_now: research.reason_to_contact_now || '',
+          recommended_project_buddy_capability: (research as any).recommended_project_buddy_capability || '',
+          recommended_offer: (research as any).recommended_offer || '',
+          reason_to_contact_now: (research as any).reason_to_contact_now || '',
           confidence: 0.9
         });
       }

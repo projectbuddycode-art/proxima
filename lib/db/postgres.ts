@@ -16,8 +16,21 @@ const ALLOWED_TABLES = new Set([
   'bridge_sessions',
   'ai_jobs',
   'pairing_codes',
-  'agents'
+  'agents',
+  'strategies',
+  'experiments',
+  'research',
+  'opportunities',
+  'messages',
+  'followups',
+  'sources',
+  'proxima_logs'
 ]);
+
+function convertSqlPlaceholders(sql: string): string {
+  let paramIndex = 1;
+  return sql.replace(/\?/g, () => `$${paramIndex++}`);
+}
 
 export class PostgresProductionDatabase implements DatabaseAdapter {
   public type: 'POSTGRES' = 'POSTGRES';
@@ -29,6 +42,39 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
       ssl: { rejectUnauthorized: false }
     });
     console.log('⚡ Initialized Real PostgresProductionDatabase Pool for Production Deployment.');
+  }
+
+  public async queryOneAsync<T = any>(sql: string, params: any[] = []): Promise<T | null> {
+    const pgSql = convertSqlPlaceholders(sql);
+    try {
+      const res = await this.pool.query(pgSql, params);
+      return (res.rows[0] as T) || null;
+    } catch (err: any) {
+      console.error(`PostgreSQL queryOneAsync error [${pgSql}]:`, err.message);
+      throw err;
+    }
+  }
+
+  public async queryAllAsync<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+    const pgSql = convertSqlPlaceholders(sql);
+    try {
+      const res = await this.pool.query(pgSql, params);
+      return (res.rows as T[]) || [];
+    } catch (err: any) {
+      console.error(`PostgreSQL queryAllAsync error [${pgSql}]:`, err.message);
+      throw err;
+    }
+  }
+
+  public async executeAsync(sql: string, params: any[] = []): Promise<{ changes: number }> {
+    const pgSql = convertSqlPlaceholders(sql);
+    try {
+      const res = await this.pool.query(pgSql, params);
+      return { changes: res.rowCount || 0 };
+    } catch (err: any) {
+      console.error(`PostgreSQL executeAsync error [${pgSql}]:`, err.message);
+      throw err;
+    }
   }
 
   public count(tableName: string, predicate?: (row: any) => boolean): number {
@@ -51,7 +97,6 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
   }
 
   public async createPairingCodeAsync(): Promise<string> {
-    // Cryptographically secure 6-digit pairing code generation
     const code = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000;
     const id = `pair_${Date.now()}`;
@@ -98,7 +143,6 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
       const bridgeId = `bridge_${crypto.randomBytes(4).toString('hex')}`;
 
-      // Neutral default machine values set at pairing time (actual details updated during heartbeat)
       await client.query(`
         INSERT INTO bridge_sessions (id, bridge_id, token_hash, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, created_at)
         VALUES ($1, $2, $3, 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', '[]', 'UNKNOWN', 'CONNECTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -127,7 +171,6 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
     const timestamp = new Date().toISOString();
     const bridgeId = payload.bridge_id || `bridge_${Date.now()}`;
 
-    // Upsert session record on token_hash conflict
     await this.pool.query(`
       INSERT INTO bridge_sessions (id, bridge_id, token_hash, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'CONNECTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -288,7 +331,7 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
   }
 
   public prepare(sql: string): PreparedQuery {
-    throw new Error('PostgresProductionDatabase does not support prepare(). All production queries use async adapter methods directly.');
+    throw new Error('PostgresProductionDatabase does not support prepare(). All production queries use async adapter methods (queryOneAsync, queryAllAsync, executeAsync) directly.');
   }
 }
 

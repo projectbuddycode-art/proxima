@@ -1,31 +1,32 @@
-# PROXIMA Surgical Production Database Hardening Audit
+# PROXIMA Final Database Adapter Migration Audit
 
 **Date**: 2026-08-15  
-**Product**: PROXIMA by Project Buddy (v2.0 Production Release)  
+**Product**: PROXIMA by Project Buddy (v2.0 Production Hardened)  
 **Target Repository**: `git@github.com:projectbuddycode-art/proxima.git`  
-**Scope**: Surgical Hardening of `lib/db/postgres.ts` and `lib/gateway/server.ts`  
 
 ---
 
-## 1. SURGICAL HARDENING MATRIX
+## 1. COMPREHENSIVE REPOSITORY CALLER AUDIT
 
-| Requirement / Item | Previous Implementation | Hardened Target State |
-| :--- | :--- | :--- |
-| **1. Cryptographic Pairing Code** | `Math.random()` integer | **Cryptographically Secure**: `crypto.randomInt(100000, 1000000).toString()`. |
-| **2. Neutral Pairing Machine Data** | Hardcoded `'Windows'`, `'x64'`, `'0.3.0'` | **Neutral Defaults at Pairing**: Set to `'UNKNOWN'` / `NULL` until actual Local Bridge sends authenticated heartbeat payload. |
-| **3. Session Heartbeat Upsert** | `ON CONFLICT (id)` | **Unique Constraint Upsert**: `ON CONFLICT (token_hash) DO UPDATE` or `ON CONFLICT (bridge_id) DO UPDATE`. |
-| **4. Prepare Stub Removal** | Fake synchronous `prepare()` returning `null` | **Cleaned Production Adapter**: Removed fake `prepare()` stub from `PostgresProductionDatabase`. All production queries use async methods. |
-| **5. Count Method Hardening** | Fake `count()` returning `0` | **Async Table Counter (`countAsync`)**: Validates `tableName` against an explicit table allowlist before executing PostgreSQL queries. |
-| **6. SQL Identifier Safety** | Unchecked table name string | **Strict Table Allowlist**: Restricted to known schema tables (`prospects`, `campaigns`, `bridge_sessions`, etc.). Rejects unlisted table names. |
-| **7. Error Handling** | Swallowed errors | **Explicit Server-Side Error Logging & Propagation**: Throws real errors without swallowing or returning fake fallbacks. Redacts credentials. |
-| **8. Smoke Test & System Tests** | Smoke test & test suite | **Smoke Test Harness**: `scripts/production-smoke-test.mjs` verifies cryptographic pairing code, neutral defaults, upsert heartbeat, and SQL safety. |
+The following table documents every database access site in the application and its target async migration state:
+
+| File Path | Synchronous Code | Migrated Async Call | Status |
+| :--- | :--- | :--- | :--- |
+| `app/api/agents/route.ts` | `db.prepare('SELECT * FROM agents').all()` | `await db.queryAllAsync('SELECT * FROM agents')` | `MIGRATING` |
+| `app/api/campaigns/route.ts` | `db.prepare(...).all()` / `.run()` | `await db.queryAllAsync(...)` / `await db.executeAsync(...)` | `MIGRATING` |
+| `app/api/experiments/route.ts` | `db.prepare(...).all()` | `await db.queryAllAsync(...)` | `MIGRATING` |
+| `app/api/prospects/route.ts` | `db.prepare(...).get()` / `.all()` | `await db.queryOneAsync(...)` / `await db.queryAllAsync(...)` | `MIGRATING` |
+| `app/api/reports/daily/route.ts` | `db.prepare(...).all()` | `await db.queryAllAsync(...)` | `MIGRATING` |
+| `app/api/responses/route.ts` | `db.prepare(...).get()` | `await db.queryOneAsync(...)` | `MIGRATING` |
+| `app/api/security/route.ts` | `db.prepare(...).all()` | `await db.queryAllAsync(...)` | `MIGRATING` |
+| `app/api/setup/route.ts` | `db.prepare(...).get()` | `await db.queryOneAsync(...)` | `MIGRATING` |
+| `lib/ai/agents.ts` | `db.prepare(...).get()` | `await db.queryOneAsync(...)` | `MIGRATING` |
+| `lib/ai/agents/registry.ts` | `db.prepare(...).get()` / `.run()` | `await db.queryOneAsync(...)` / `await db.executeAsync(...)` | `MIGRATING` |
+| `lib/discovery/strategies.ts` | `db.prepare(...).get()` / `.run()` | `await db.queryOneAsync(...)` / `await db.executeAsync(...)` | `MIGRATING` |
+| `lib/orchestrator/pipeline.ts` | `db.prepare(...).get()` / `.run()` | `await db.queryOneAsync(...)` / `await db.executeAsync(...)` | `MIGRATING` |
+| `tests/system.test.ts` | `db.prepare(...).get()` / `.run()` | `await db.queryOneAsync(...)` / `await db.executeAsync(...)` | `MIGRATING` |
 
 ---
 
-## 2. SURGICAL ROADMAP
-1. Update `lib/db/postgres.ts` to use `crypto.randomInt(100000, 1000000)`, set neutral defaults (`'UNKNOWN'`) during pairing, enforce table allowlist in `countAsync()`, and remove fake `prepare()` / `count()` stubs.
-2. Update `lib/db/schema.sql` to add `UNIQUE (token_hash)` constraint to `bridge_sessions` table.
-3. Update `lib/db.ts` to remove unnecessary synchronous `prepare` on production adapter interface.
-4. Update `scripts/production-smoke-test.mjs` and `tests/system.test.ts` to verify cryptographic pairing codes and neutral defaults.
-5. Run `npx tsx scripts/production-smoke-test.mjs`, `npm test`, and `npm run build`.
-6. Commit changes with `git commit -m "fix: harden production postgres bridge state"` and push to `git push origin main`.
+## 2. Dynamic Next.js API Routes Matrix
+All database-backed API routes will export `export const dynamic = 'force-dynamic';` to ensure Next.js does not attempt static build-time prerendering without database connection context.

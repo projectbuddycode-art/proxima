@@ -284,22 +284,26 @@ export const SYSTEM_AGENTS: AgentDefinition[] = [
   }
 ];
 
-export function initializeAgentRegistry() {
+export async function initializeAgentRegistry() {
   const db = getDb();
   for (const agentDef of SYSTEM_AGENTS) {
-    const existing = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentDef.id) as AgentRecord | undefined;
+    const existing = await db.queryOneAsync<AgentRecord>('SELECT * FROM agents WHERE id = ?', [agentDef.id]);
     if (!existing) {
-      db.prepare('INSERT INTO agents (id, name, role, goal, status, tasks_completed, tasks_rejected, success_rate, confidence_avg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run({
-        id: agentDef.id,
-        name: agentDef.name,
-        role: agentDef.role,
-        goal: agentDef.goal,
-        status: 'IDLE',
-        tasks_completed: 12,
-        tasks_rejected: 0,
-        success_rate: 100,
-        confidence_avg: agentDef.confidence_threshold
-      });
+      await db.executeAsync(
+        'INSERT INTO agents (id, name, role, goal, status, tasks_completed, tasks_rejected, success_rate, confidence_avg) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          agentDef.id,
+          agentDef.name,
+          agentDef.role,
+          agentDef.goal,
+          'IDLE',
+          12,
+          0,
+          100,
+          agentDef.confidence_threshold
+        ]
+      );
     }
   }
 }
+

@@ -69,12 +69,15 @@ export const DISCOVERY_STRATEGY_REGISTRY: StrategyRecord[] = [
   }
 ];
 
-export function initializeStrategyRegistry() {
+export async function initializeStrategyRegistry() {
   const db = getDb();
   for (const strat of DISCOVERY_STRATEGY_REGISTRY) {
-    const existing = db.prepare('SELECT * FROM strategies WHERE id = ?').get(strat.id);
+    const existing = await db.queryOneAsync('SELECT * FROM strategies WHERE id = ?', [strat.id]);
     if (!existing) {
-      db.prepare('INSERT INTO strategies (id, name, target, search_pattern, source, success_rate, prospects_found, qualified_prospects, meetings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(strat);
+      await db.executeAsync(
+        'INSERT INTO strategies (id, name, target, search_pattern, source, success_rate, prospects_found, qualified_prospects, meetings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [strat.id, strat.name, strat.target, strat.search_pattern, strat.source, strat.success_rate, strat.prospects_found, strat.qualified_prospects, strat.meetings]
+      );
     }
   }
 
@@ -103,9 +106,13 @@ export function initializeStrategyRegistry() {
   ];
 
   for (const exp of initialExperiments) {
-    const existing = db.prepare('SELECT * FROM experiments WHERE id = ?').get(exp.id);
+    const existing = await db.queryOneAsync('SELECT * FROM experiments WHERE id = ?', [exp.id]);
     if (!existing) {
-      db.prepare('INSERT INTO experiments (id, hypothesis, target_industry, sample_size, qualified_rate, reply_rate, status, recommendation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(exp);
+      await db.executeAsync(
+        'INSERT INTO experiments (id, hypothesis, target_industry, sample_size, qualified_rate, reply_rate, status, recommendation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [exp.id, exp.hypothesis, exp.target_industry, exp.sample_size, exp.qualified_rate, exp.reply_rate, exp.status, exp.recommendation]
+      );
     }
   }
 }
+

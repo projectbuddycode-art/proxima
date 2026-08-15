@@ -4,20 +4,9 @@ import fs from 'fs';
 import path from 'path';
 
 export function getAIProvider(): AIProvider {
-  try {
-    const db = getDb();
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'ollama_base_url'").get() as { value: string } | undefined;
-    const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as { value: string } | undefined;
-
-    const baseUrl = process.env.OLLAMA_BASE_URL || row?.value || 'http://127.0.0.1:11434';
-    const model = process.env.OLLAMA_MODEL || modelRow?.value || 'qwen2.5-coder:7b';
-
-    return new OllamaProvider(baseUrl, model);
-  } catch (err) {
-    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-    const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
-    return new OllamaProvider(baseUrl, model);
-  }
+  const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+  const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
+  return new OllamaProvider(baseUrl, model);
 }
 
 function loadKnowledgeContext(): string {

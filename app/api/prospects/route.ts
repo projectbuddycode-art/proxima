@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   initDb();
   const db = getDb();
@@ -9,23 +11,23 @@ export async function GET(req: Request) {
   const takeoverOnly = searchParams.get('takeover') === 'true';
 
   if (id) {
-    const prospect = db.prepare(`
-      SELECT p.*, c.name as company_name, c.website, c.industry, c.location, c.company_summary
+    const prospect = await db.queryOneAsync(`
+      SELECT p.*, c.name as company_name, c.website, c.industry, c.location
       FROM prospects p
-      JOIN companies c ON p.company_id = c.id
+      LEFT JOIN companies c ON p.company_id = c.id
       WHERE p.id = ?
-    `).get(id) as any;
+    `, [id]);
 
     if (!prospect) {
       return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
     }
 
-    const research = db.prepare('SELECT * FROM research WHERE company_id = ?').get(prospect.company_id);
-    const opportunity = db.prepare('SELECT * FROM opportunities WHERE prospect_id = ?').get(prospect.id);
-    const messages = db.prepare('SELECT * FROM messages WHERE prospect_id = ?').all();
-    const responses = db.prepare('SELECT * FROM responses WHERE prospect_id = ? ORDER BY received_at DESC').all();
-    const followups = db.prepare('SELECT * FROM followups WHERE prospect_id = ? ORDER BY step ASC').all();
-    const sources = research ? db.prepare('SELECT * FROM sources WHERE research_id = ?').all() : [];
+    const research = prospect.company_id ? await db.queryOneAsync('SELECT * FROM research WHERE company_id = ?', [prospect.company_id]) : null;
+    const opportunity = await db.queryOneAsync('SELECT * FROM opportunities WHERE prospect_id = ?', [prospect.id]);
+    const messages = await db.queryAllAsync('SELECT * FROM messages WHERE prospect_id = ?', [prospect.id]);
+    const responses = await db.queryAllAsync('SELECT * FROM responses WHERE prospect_id = ? ORDER BY created_at DESC', [prospect.id]);
+    const followups = await db.queryAllAsync('SELECT * FROM followups WHERE prospect_id = ?', [prospect.id]);
+    const sources = (research && (research as any).id) ? await db.queryAllAsync('SELECT * FROM sources WHERE research_id = ?', [(research as any).id]) : [];
 
     return NextResponse.json({
       prospect,
@@ -41,7 +43,7 @@ export async function GET(req: Request) {
   let query = `
     SELECT p.*, c.name as company_name, c.website, c.industry, c.location
     FROM prospects p
-    JOIN companies c ON p.company_id = c.id
+    LEFT JOIN companies c ON p.company_id = c.id
   `;
 
   if (takeoverOnly) {
@@ -50,6 +52,6 @@ export async function GET(req: Request) {
 
   query += ` ORDER BY p.intent_score DESC, p.created_at DESC`;
 
-  const prospects = db.prepare(query).all();
+  const prospects = await db.queryAllAsync(query);
   return NextResponse.json({ prospects });
 }

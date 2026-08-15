@@ -3,6 +3,8 @@ import { getDb, initDb } from '@/lib/db';
 import { ProximaCommanderEngine } from '@/lib/commander/engine';
 import { GeographicExpansionEngine } from '@/lib/commander/expansion';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   initDb();
   const evaluation = ProximaCommanderEngine.evaluateSystemState();

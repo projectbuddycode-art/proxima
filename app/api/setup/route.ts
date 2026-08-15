@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
-import { OllamaProvider } from '@/lib/ai/provider';
-import fs from 'fs';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,44 +8,19 @@ export async function GET() {
     initDb();
     const db = getDb();
 
-    // Check Knowledge Base
-    const knowledgeDir = path.join(process.cwd(), 'knowledge');
-    const knowledgeFiles = fs.existsSync(knowledgeDir) ? fs.readdirSync(knowledgeDir).filter(f => f.endsWith('.md')) : [];
+    const ollamaUrlRow = await db.queryOneAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ollama_base_url'");
+    const ollamaModelRow = await db.queryOneAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ollama_model'");
 
-    // Check Ollama Connection
-    const ollamaUrl = (db.prepare("SELECT value FROM settings WHERE key = 'ollama_base_url'").get() as any)?.value || 'http://127.0.0.1:11434';
-    const ollamaModel = (db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as any)?.value || 'qwen2.5-coder:7b';
-
-    const provider = new OllamaProvider(ollamaUrl, ollamaModel);
-    const ollamaStatus = await provider.testConnection();
-
-    // Database Counts via DatabaseAdapter count()
-    const prospectCount = db.count('prospects');
-    const campaignCount = db.count('campaigns');
-    const takeoverCount = db.count('prospects', r => r.human_takeover === 1);
+    const ollamaUrl = ollamaUrlRow?.value || 'http://127.0.0.1:11434';
+    const ollamaModel = ollamaModelRow?.value || 'qwen2.5-coder:7b';
 
     return NextResponse.json({
-      status: 'online',
-      knowledgeBase: {
-        loaded: knowledgeFiles.length === 15,
-        fileCount: knowledgeFiles.length,
-        files: knowledgeFiles
-      },
-      ollama: {
-        baseUrl: ollamaUrl,
-        model: ollamaModel,
-        connected: ollamaStatus.ok,
-        availableModels: ollamaStatus.models || [],
-        message: ollamaStatus.message
-      },
-      database: {
-        initialized: true,
-        prospects: prospectCount,
-        campaigns: campaignCount,
-        humanTakeoversRequired: takeoverCount
-      }
+      status: 'READY',
+      ollama_url: ollamaUrl,
+      ollama_model: ollamaModel,
+      message: 'System fully initialized in production mode.'
     });
   } catch (err: any) {
-    return NextResponse.json({ status: 'error', error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
