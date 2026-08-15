@@ -254,8 +254,8 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
         </div>
       )}
 
-      {/* Fixed Mobile Bottom Navigation Bar (md:hidden) */}
-      <div className="fixed bottom-0 left-0 right-0 h-16 bg-[#1C2541]/95 backdrop-blur border-t border-slate-800 flex items-center justify-around z-40 md:hidden font-mono text-[10px]">
+      {/* Fixed Mobile Bottom Navigation Bar (md:hidden) with iOS Safe-Area Padding */}
+      <div className="fixed bottom-0 left-0 right-0 h-16 pb-[env(safe-area-inset-bottom,0px)] bg-[#1C2541]/95 backdrop-blur border-t border-slate-800 flex items-center justify-around z-40 md:hidden font-mono text-xs">
         {mobileBottomNav.map((item, idx) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;

@@ -83,6 +83,23 @@ export class EvidenceEngine {
   }
 
   /**
+   * Returns source reliability weight (0-100) based on source provenance hierarchy
+   */
+  static getSourceReliabilityScore(sourceType: string): number {
+    const s = (sourceType || '').toLowerCase();
+    if (s.includes('government') || s.includes('registry')) return 100;
+    if (s.includes('official website') || s.includes('domain')) return 95;
+    if (s.includes('authorized api') || s.includes('oauth')) return 95;
+    if (s.includes('company filing')) return 95;
+    if (s.includes('verified social')) return 90;
+    if (s.includes('directory') || s.includes('openstreetmap') || s.includes('osm')) return 70;
+    if (s.includes('search result')) return 60;
+    if (s.includes('unverified directory')) return 35;
+    if (s.includes('ai inference') || s.includes('model')) return 0;
+    return 60;
+  }
+
+  /**
    * Evaluates claim confidence based on provenance evidence availability
    */
   static evaluateClaimConfidence(sourceUrl?: string, hasPublicEvidence?: boolean): 'HIGH' | 'MEDIUM' | 'LOW' {
