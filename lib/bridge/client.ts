@@ -4,6 +4,7 @@ export interface LocalBridgeHealth {
   ollama: 'REACHABLE' | 'UNREACHABLE';
   models: string[];
   activeModel?: string;
+  bridge_id?: string;
   message?: string;
 }
 

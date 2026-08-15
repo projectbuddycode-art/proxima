@@ -19,7 +19,7 @@ import path from 'path';
 
 async function runProximaProductionReleaseSuite() {
   console.log('========================================================================');
-  console.log('🚀 PROXIMA BY PROJECT BUDDY — OUTBOUND LOCAL BRIDGE & GATEWAY VERIFICATION');
+  console.log('🚀 PROXIMA BY PROJECT BUDDY — VERCEL SERVERLESS OUTBOUND BRIDGE TEST SUITE');
   console.log('========================================================================\n');
 
   // Clean test database for fresh run
@@ -28,37 +28,39 @@ async function runProximaProductionReleaseSuite() {
     fs.unlinkSync(dbFile);
   }
 
-  // 1. Proxima Cloud Gateway & Device Pairing Test
+  // 1. Proxima Cloud Gateway Pairing & Bearer Token Authorization
   console.log('[TEST 1/10] Verifying Proxima Cloud Gateway Pairing & Device Token Engine...');
+  initDb();
   const pairingCode = ProximaCloudGateway.generatePairingCode();
   const pairResult = ProximaCloudGateway.validatePairingCode(pairingCode);
 
   console.log(`  ✅ Pairing Code Generated: ${pairingCode} (10 min expiry)`);
   console.log(`  ✅ Pairing Code Validation: ${pairResult.success ? 'SUCCESS' : 'FAILED'} (Token: ${pairResult.token})\n`);
 
-  // 2. 15-Second Heartbeat & Gateway Status Test
-  console.log('[TEST 2/10] Verifying Proxima Local Bridge Outbound 15s Heartbeat & Status...');
+  // 2. Outbound Heartbeat & DB Session Storage
+  console.log('[TEST 2/10] Verifying Proxima Local Bridge Outbound Bearer Token Heartbeat...');
   const heartbeatResult = ProximaCloudGateway.handleHeartbeat({
-    bridge_id: 'bridge_shivam_laptop',
+    bridge_id: 'bridge_a8f9c2d1',
     token: pairResult.token || 'test_token',
     ollama_version: '0.3.0',
     models: ['qwen2.5-coder:7b', 'llama3']
   });
 
   const gwStatus = ProximaCloudGateway.getStatus();
-  console.log(`  ✅ Heartbeat Received: Timestamp=${heartbeatResult.timestamp}`);
-  console.log(`  ✅ Proxima Gateway Status: ${gwStatus.status} (Mode=${gwStatus.mode}, ActiveModel=${gwStatus.bridge?.active_model})\n`);
+  console.log(`  ✅ Heartbeat Saved in DB: Timestamp=${heartbeatResult.timestamp}`);
+  console.log(`  ✅ Proxima Gateway Status: ${gwStatus.status} (BridgeID=${gwStatus.bridge?.bridge_id}, ActiveModel=${gwStatus.bridge?.active_model})\n`);
 
-  // 3. System Rebranding & Configuration
-  console.log('[TEST 3/10] Verifying PROXIMA Rebranding & REAL MODE Configuration...');
-  initDb();
-  initializeAgentRegistry();
-  initializeStrategyRegistry();
-  const db = getDb();
-  const config = getProximaConfig();
+  // 3. Vercel Serverless Job Queue DB Flow (QUEUED -> CLAIMED -> COMPLETED)
+  console.log('[TEST 3/10] Verifying Serverless Job Queue Lifecycle (QUEUED -> CLAIMED -> COMPLETED)...');
+  const job = ProximaCloudGateway.enqueueJob('TEST_INFERENCE', { prompt: 'Return exactly: PROXIMA LOCAL OLLAMA CONNECTED' });
+  console.log(`  ✅ Job Dispatched to DB Queue: JobID=${job.job_id}, RequestID=${job.request_id}, Status=${job.status}`);
 
-  console.log(`  ✅ Application Name: ${config.app_name} by Project Buddy`);
-  console.log(`  ✅ System Mode: ${config.app_mode} (Strict Zero-Fabrication Firewall: ${config.zero_fabrication_strict})\n`);
+  const claimed = ProximaCloudGateway.claimNextJob();
+  console.log(`  ✅ Job Claimed by Local Bridge Poll: RequestID=${claimed?.request_id}, Status=${claimed?.status}`);
+
+  ProximaCloudGateway.completeJob(job.request_id, { output: 'PROXIMA LOCAL OLLAMA CONNECTED', model: 'qwen2.5-coder:7b' }, 120);
+  const completedJob = ProximaCloudGateway.getJobStatus(job.request_id);
+  console.log(`  ✅ Job Completed & Posted Back: Status=${completedJob?.status}, Latency=${completedJob?.latency_ms}ms, Result="${completedJob?.result?.output}"\n`);
 
   // 4. PROXIMA COMMANDER AI CEO Engine
   console.log('[TEST 4/10] Testing PROXIMA COMMANDER AI CEO Engine & Funnel Decomposition...');
@@ -104,6 +106,9 @@ async function runProximaProductionReleaseSuite() {
 
   // 10. Positive Interest Detector & Shivam Takeover Handoff
   console.log('[TEST 10/10] Testing Positive Interest Detector & Shivam Takeover Handoff...');
+  const db = getDb();
+  initializeAgentRegistry();
+  initializeStrategyRegistry();
   const campaignId = `release_camp_${Date.now()}`;
   db.prepare(`
     INSERT INTO campaigns (id, name, industry, location, target_role, offer, min_intent, min_fit, status)

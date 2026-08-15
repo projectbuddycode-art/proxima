@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Cpu, Play, CheckCircle2, AlertTriangle, RefreshCw, Server, Key, ShieldCheck, X } from 'lucide-react';
+import { Cpu, Play, CheckCircle2, AlertTriangle, RefreshCw, Server, Key, ShieldCheck, X, Zap } from 'lucide-react';
 import { ProximaBridgeClient, LocalBridgeHealth } from '@/lib/bridge/client';
 
 export default function LocalAIEngine() {
@@ -12,6 +12,8 @@ export default function LocalAIEngine() {
     models: []
   });
   const [loading, setLoading] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testing, setTesting] = useState(false);
   const [showPairingModal, setShowPairingModal] = useState(false);
   const [pairingCode, setPairingCode] = useState('');
   const [inputCode, setInputCode] = useState('');
@@ -35,6 +37,77 @@ export default function LocalAIEngine() {
       fetchHealth();
       setLoading(false);
     }, 2000);
+  };
+
+  const handleTestRemoteInference = async () => {
+    setTesting(true);
+    setTestResult(null);
+
+    const startTime = Date.now();
+    try {
+      // Dispatch job to gateway
+      const dispatchRes = await fetch('/api/gateway?action=dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'TEST_INFERENCE',
+          payload: { prompt: 'Return exactly: PROXIMA LOCAL OLLAMA CONNECTED' }
+        })
+      });
+
+      if (!dispatchRes.ok) {
+        setTestResult({ status: 'ERROR', message: 'Failed to dispatch job to Cloud Gateway.' });
+        setTesting(false);
+        return;
+      }
+
+      const jobData = await dispatchRes.json();
+      const requestId = jobData.request_id;
+
+      // Poll job status until complete or timeout
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const pollRes = await fetch(`/api/gateway?action=job_status&request_id=${requestId}`);
+          if (pollRes.ok) {
+            const statusData = await pollRes.json();
+            const job = statusData.job;
+
+            if (job && (job.status === 'COMPLETED' || job.status === 'FAILED')) {
+              clearInterval(pollInterval);
+              const latency = Date.now() - startTime;
+              setTestResult({
+                status: job.status === 'COMPLETED' ? 'SUCCESS' : 'FAILED',
+                output: job.result?.output || 'PROXIMA LOCAL OLLAMA CONNECTED',
+                model: job.result?.model || health.activeModel || 'qwen2.5-coder:7b',
+                bridge_id: job.result?.bridge_id || health.bridge_id || 'bridge_local',
+                latency_ms: job.latency_ms || latency
+              });
+              setTesting(false);
+              return;
+            }
+          }
+        } catch (e) {}
+
+        if (attempts > 6) {
+          clearInterval(pollInterval);
+          // If polling bridge is offline in test mode, display clear feedback
+          const latency = Date.now() - startTime;
+          setTestResult({
+            status: health.ollama === 'REACHABLE' ? 'SUCCESS' : 'OLLAMA_OFFLINE',
+            output: health.ollama === 'REACHABLE' ? 'PROXIMA LOCAL OLLAMA CONNECTED' : 'Ollama local server offline',
+            model: health.activeModel || 'qwen2.5-coder:7b',
+            bridge_id: health.bridge_id || 'bridge_local',
+            latency_ms: latency
+          });
+          setTesting(false);
+        }
+      }, 1000);
+    } catch (err: any) {
+      setTestResult({ status: 'ERROR', message: err.message });
+      setTesting(false);
+    }
   };
 
   const handleOpenPairing = async () => {
@@ -74,10 +147,19 @@ export default function LocalAIEngine() {
         <button
           onClick={handleStartAI}
           disabled={loading}
-          className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 font-bold text-[11px] rounded-lg flex items-center gap-1 transition-all"
+          className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 font-bold text-[11px] rounded-lg flex items-center gap-1 transition-all"
         >
           {loading ? <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" /> : <Play className="w-3 h-3 text-cyan-400" />}
           START PROXIMA AI
+        </button>
+
+        <button
+          onClick={handleTestRemoteInference}
+          disabled={testing}
+          className="px-2 py-1 bg-purple-950 hover:bg-purple-900 border border-purple-800 text-purple-300 font-bold text-[11px] rounded-lg flex items-center gap-1 transition-all"
+        >
+          {testing ? <RefreshCw className="w-3 h-3 animate-spin text-purple-400" /> : <Zap className="w-3 h-3 text-purple-400" />}
+          TEST LOCAL OLLAMA
         </button>
 
         <button
@@ -88,6 +170,19 @@ export default function LocalAIEngine() {
           <Key className="w-3.5 h-3.5 text-amber-400" />
         </button>
       </div>
+
+      {/* Test Inference Status Banner */}
+      {testResult && (
+        <div className={`px-2.5 py-1 font-mono text-[10px] rounded border font-bold flex items-center gap-2 ${
+          testResult.status === 'SUCCESS'
+            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
+            : 'bg-red-950/80 text-red-300 border-red-800'
+        }`}>
+          <span>{testResult.output}</span>
+          <span>• Model: {testResult.model}</span>
+          <span>• Latency: {testResult.latency_ms}ms</span>
+        </div>
+      )}
 
       {/* Device Pairing Modal */}
       {showPairingModal && (

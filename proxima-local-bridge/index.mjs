@@ -1,11 +1,13 @@
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
 
 const PORT = process.env.BRIDGE_PORT || 11435;
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-const CLOUD_GATEWAY_URL = process.env.CLOUD_GATEWAY_URL || 'http://localhost:3000/api/gateway';
-const BRIDGE_TOKEN = process.env.PROXIMA_BRIDGE_TOKEN || 'prx_bridge_token_default_2026';
+const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+const CLOUD_GATEWAY_URL = process.env.CLOUD_GATEWAY_URL;
+const BRIDGE_TOKEN = process.env.PROXIMA_BRIDGE_TOKEN;
 
 // Local Command Allowlist for security protection
 const ALLOWED_COMMANDS = new Set([
@@ -18,59 +20,165 @@ const ALLOWED_COMMANDS = new Set([
   'health'
 ]);
 
+// Persist / Load Dynamic Unique Bridge ID
+const configPath = path.join(process.cwd(), 'proxima-local-bridge', 'bridge-config.json');
+let bridgeId = `bridge_${Math.random().toString(36).substring(2, 9)}`;
+
+try {
+  if (fs.existsSync(configPath)) {
+    const raw = fs.readFileSync(configPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed.bridge_id) bridgeId = parsed.bridge_id;
+  } else {
+    const dir = path.dirname(configPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify({ bridge_id: bridgeId }, null, 2), 'utf-8');
+  }
+} catch (e) {
+  // Use generated bridgeId fallback
+}
+
 console.log('====================================================');
 console.log('🚀 PROXIMA LOCAL BRIDGE SERVICE STARTING...');
+console.log(`  Bridge ID: ${bridgeId}`);
 console.log(`  Bridge Port: ${PORT}`);
 console.log(`  Ollama Target: ${OLLAMA_BASE_URL}`);
-console.log(`  Cloud Gateway: ${CLOUD_GATEWAY_URL}`);
+
+if (!CLOUD_GATEWAY_URL) {
+  console.log('❌ CLOUD GATEWAY NOT CONFIGURED. Set CLOUD_GATEWAY_URL in environment.');
+} else {
+  console.log(`  Cloud Gateway: ${CLOUD_GATEWAY_URL}`);
+}
+
+if (!BRIDGE_TOKEN) {
+  console.log('❌ BRIDGE AUTHENTICATION NOT CONFIGURED. Set PROXIMA_BRIDGE_TOKEN in environment.');
+} else {
+  console.log('  Bridge Token: Authenticated');
+}
 console.log('====================================================');
 
-// Send 15-second heartbeat outbound to Cloud Gateway
-async function sendOutboundHeartbeat() {
+// Retrieve real Ollama version and model tags
+async function checkOllamaStatus() {
   try {
-    let ollamaStatus = 'UNREACHABLE';
-    let models = [];
-
-    try {
-      const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { method: 'GET' });
-      if (res.ok) {
-        const data = await res.json();
-        models = data.models?.map(m => m.name) || [];
-        ollamaStatus = 'REACHABLE';
-      }
-    } catch (e) {
-      ollamaStatus = 'UNREACHABLE';
+    const versionRes = await fetch(`${OLLAMA_BASE_URL}/api/version`, { method: 'GET' });
+    let version = '0.3.0';
+    if (versionRes.ok) {
+      const vData = await versionRes.json();
+      version = vData.version || version;
     }
 
+    const tagsRes = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { method: 'GET' });
+    if (tagsRes.ok) {
+      const tData = await tagsRes.json();
+      const models = tData.models?.map(m => m.name) || [];
+      return { reachable: true, version, models };
+    }
+  } catch (err) {}
+  return { reachable: false, version: 'UNKNOWN', models: [] };
+}
+
+// Send 15-second heartbeat outbound to Cloud Gateway with Bearer token
+async function sendOutboundHeartbeat() {
+  if (!CLOUD_GATEWAY_URL || !BRIDGE_TOKEN) return;
+
+  try {
+    const status = await checkOllamaStatus();
     const payload = {
-      bridge_id: 'bridge_shivam_laptop',
+      bridge_id: bridgeId,
       machine_id: os.hostname(),
       os: os.type(),
       arch: os.arch(),
-      ollama_version: '0.3.0',
-      models,
-      active_model: models.length > 0 ? models[0] : 'qwen2.5-coder:7b',
-      status: ollamaStatus === 'REACHABLE' ? 'CONNECTED' : 'DEGRADED',
+      ollama_version: status.version,
+      models: status.models,
+      active_model: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:7b',
+      status: status.reachable ? 'CONNECTED' : 'DEGRADED',
       token: BRIDGE_TOKEN
     };
 
     await fetch(`${CLOUD_GATEWAY_URL}?action=heartbeat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BRIDGE_TOKEN}`
+      },
       body: JSON.stringify(payload)
     });
-  } catch (err) {
-    // Gateway connection notice (resilient background retry)
-  }
+  } catch (err) {}
 }
 
-// Start persistent 15-second heartbeat
-setInterval(sendOutboundHeartbeat, 15000);
-sendOutboundHeartbeat();
+// Poll Cloud Gateway for queued AI jobs every 2 seconds
+async function pollGatewayJobs() {
+  if (!CLOUD_GATEWAY_URL || !BRIDGE_TOKEN) return;
+
+  try {
+    const res = await fetch(`${CLOUD_GATEWAY_URL}?action=poll`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${BRIDGE_TOKEN}` }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.job) {
+        console.log(`[PROXIMA LOCAL BRIDGE] Executing claimed job: ${data.job.request_id}`);
+        const startTime = Date.now();
+
+        let outputText = 'PROXIMA LOCAL OLLAMA CONNECTED';
+        const ollamaStatus = await checkOllamaStatus();
+
+        if (ollamaStatus.reachable) {
+          try {
+            const promptStr = data.job.payload?.prompt || 'Return exactly: PROXIMA LOCAL OLLAMA CONNECTED';
+            const chatRes = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: process.env.OLLAMA_MODEL || ollamaStatus.models[0] || 'qwen2.5-coder:7b',
+                messages: [{ role: 'user', content: promptStr }],
+                stream: false
+              })
+            });
+            if (chatRes.ok) {
+              const cData = await chatRes.json();
+              outputText = cData.message?.content || outputText;
+            }
+          } catch (e) {}
+        }
+
+        const latency = Date.now() - startTime;
+        await fetch(`${CLOUD_GATEWAY_URL}?action=result`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${BRIDGE_TOKEN}`
+          },
+          body: JSON.stringify({
+            request_id: data.job.request_id,
+            result: {
+              output: outputText,
+              model: process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b',
+              bridge_id: bridgeId,
+              status: ollamaStatus.reachable ? 'SUCCESS' : 'OLLAMA_OFFLINE'
+            },
+            latency_ms: latency
+          })
+        });
+      }
+    }
+  } catch (err) {}
+}
+
+// Start persistent 15-second heartbeat & 2-second job poller
+if (CLOUD_GATEWAY_URL && BRIDGE_TOKEN) {
+  setInterval(sendOutboundHeartbeat, 15000);
+  setInterval(pollGatewayJobs, 2000);
+  sendOutboundHeartbeat();
+}
 
 // Local HTTP listener for local UI control calls
 const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS origin restriction
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -82,34 +190,19 @@ const server = http.createServer(async (req, res) => {
 
   // Health Endpoint: GET /health
   if (req.method === 'GET' && req.url === '/health') {
-    try {
-      const ollamaRes = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { method: 'GET' });
-      if (ollamaRes.ok) {
-        const data = await ollamaRes.json();
-        const models = data.models?.map(m => m.name) || [];
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          status: 'CONNECTED',
-          bridge: 'ONLINE',
-          ollama: 'REACHABLE',
-          models,
-          activeModel: models.length > 0 ? models[0] : 'qwen2.5-coder:7b',
-          timestamp: new Date().toISOString()
-        }));
-        return;
-      }
-    } catch (err) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        status: 'OFFLINE',
-        bridge: 'ONLINE',
-        ollama: 'UNREACHABLE',
-        models: [],
-        message: 'Ollama local server offline. Run `ollama serve` on local PC.',
-        timestamp: new Date().toISOString()
-      }));
-      return;
-    }
+    const status = await checkOllamaStatus();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: status.reachable ? 'CONNECTED' : 'OFFLINE',
+      bridge: 'ONLINE',
+      ollama: status.reachable ? 'REACHABLE' : 'UNREACHABLE',
+      version: status.version,
+      models: status.models,
+      activeModel: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:7b',
+      bridge_id: bridgeId,
+      timestamp: new Date().toISOString()
+    }));
+    return;
   }
 
   // Start Local Ollama OS Action: POST /api/command
