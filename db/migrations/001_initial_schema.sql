@@ -57,10 +57,16 @@ CREATE TABLE IF NOT EXISTS companies (
 
 CREATE TABLE IF NOT EXISTS prospects (
   id VARCHAR(255) PRIMARY KEY,
+  campaign_id VARCHAR(255) REFERENCES campaigns(id) ON DELETE SET NULL,
   company_id VARCHAR(255) REFERENCES companies(id) ON DELETE SET NULL,
+  company_name VARCHAR(255),
+  website VARCHAR(255),
+  industry VARCHAR(255),
+  location VARCHAR(255),
   name VARCHAR(255),
   contact_name VARCHAR(255),
   role VARCHAR(255),
+  contact_role VARCHAR(255),
   title VARCHAR(255),
   email VARCHAR(255),
   phone VARCHAR(50),
@@ -71,6 +77,11 @@ CREATE TABLE IF NOT EXISTS prospects (
   human_takeover INTEGER DEFAULT 0,
   takeover_reason TEXT,
   status VARCHAR(50) DEFAULT 'DISCOVERED',
+  research_summary_json JSONB,
+  fit_breakdown_json JSONB,
+  opportunity_angle_json JSONB,
+  outreach_draft_json JSONB,
+  cross_check_qa_json JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

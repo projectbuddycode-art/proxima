@@ -134,7 +134,7 @@ export class PipelineOrchestrator {
           secObservation.https_enabled ? 1 : 0,
           JSON.stringify(secObservation.security_headers_present),
           JSON.stringify(secObservation.missing_security_headers),
-          secObservation.public_tech_signature,
+          JSON.stringify(typeof secObservation.public_tech_signature === 'string' ? [secObservation.public_tech_signature] : (secObservation.public_tech_signature || [])),
           secObservation.robots_txt_status,
           secObservation.sitemap_status,
           secObservation.observation_summary,

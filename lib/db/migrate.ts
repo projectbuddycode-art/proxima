@@ -27,6 +27,17 @@ async function runDatabaseMigrations() {
     // Schema alterations for existing tables
     const alterQueries = [
       'ALTER TABLE bridge_sessions ADD CONSTRAINT bridge_sessions_token_hash_key UNIQUE (token_hash);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS campaign_id VARCHAR(255);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website VARCHAR(255);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS industry VARCHAR(255);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS location VARCHAR(255);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_role VARCHAR(255);',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS research_summary_json JSONB;',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS fit_breakdown_json JSONB;',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS opportunity_angle_json JSONB;',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS outreach_draft_json JSONB;',
+      'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS cross_check_qa_json JSONB;',
       'ALTER TABLE prospects ALTER COLUMN name DROP NOT NULL;',
       'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255);',
       'ALTER TABLE prospects ADD COLUMN IF NOT EXISTS role VARCHAR(255);',
