@@ -1,32 +1,62 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
-  initDb();
-  const db = getDb();
+  try {
+    initDb();
+    const db = getDb();
 
-  const totalDiscovered = (db.prepare('SELECT COUNT(*) as cnt FROM prospects').get() as any).cnt;
-  const highIntentCount = (db.prepare('SELECT COUNT(*) as cnt FROM prospects WHERE intent_score >= 70').get() as any).cnt;
-  const takeoverCount = (db.prepare('SELECT COUNT(*) as cnt FROM prospects WHERE human_takeover = 1').get() as any).cnt;
-  const messagesPrepared = (db.prepare('SELECT COUNT(*) as cnt FROM messages').get() as any).cnt;
-  const responsesReceived = (db.prepare('SELECT COUNT(*) as cnt FROM responses').get() as any).cnt;
-  const activeCampaigns = (db.prepare("SELECT COUNT(*) as cnt FROM campaigns WHERE status = 'ACTIVE'").get() as any).cnt;
+    const totalDiscovered = db.count('prospects');
+    const totalResearched = db.count('prospects', r => r.fit_score !== undefined || r.intent_score !== undefined);
+    const highIntentCount = db.count('prospects', r => (r.intent_score || 0) >= 70);
+    const takeoverCount = db.count('prospects', r => r.human_takeover === 1);
+    const messagesPrepared = db.count('outreach_messages');
+    const messagesSent = db.count('outreach_messages', r => r.status === 'SENT');
+    const responsesReceived = db.count('responses');
+    const meetingsScheduled = db.count('prospects', r => r.status === 'MEETING_SCHEDULED');
 
-  return NextResponse.json({
-    reportDate: new Date().toISOString().split('T')[0],
-    metrics: {
-      prospectsDiscovered: totalDiscovered,
-      prospectsResearched: totalDiscovered,
-      highIntentProspects: highIntentCount,
-      messagesPrepared,
-      messagesSent: Math.min(messagesPrepared, 10),
-      repliesReceived: responsesReceived,
-      interestedLeads: takeoverCount,
-      meetingsScheduled: Math.max(0, takeoverCount - 1),
-      pipelineValueUSD: takeoverCount * 8000
-    },
-    topPerformingCampaign: 'Bangalore Lighting Opportunity',
-    bestOffer: 'Premium Digital Lighting Showroom',
-    recommendedNextAction: takeoverCount > 0 ? `🚨 Review ${takeoverCount} hot lead(s) requiring human takeover.` : 'Run discovery for Bangalore Lighting Campaign.'
-  });
+    // Retrieve active campaign and offer from actual database records
+    const campaigns = db.prepare('SELECT * FROM campaigns').all() as any[];
+    const activeCampaign = campaigns.find(c => c.status === 'ACTIVE') || campaigns[0] || null;
+
+    const topPerformingCampaign = activeCampaign ? activeCampaign.name : null;
+    const bestOffer = activeCampaign ? activeCampaign.offer : null;
+
+    // Calculate actual pipeline value from database records or return null
+    const prospects = db.prepare('SELECT * FROM prospects').all() as any[];
+    let totalPipeline = 0;
+    for (const p of prospects) {
+      if (p.human_takeover === 1 || p.intent_score >= 70) {
+        totalPipeline += p.estimated_value || p.min_project_value || 0;
+      }
+    }
+    const pipelineValue = totalPipeline > 0 ? totalPipeline : null;
+
+    return NextResponse.json({
+      reportDate: new Date().toISOString().split('T')[0],
+      metrics: {
+        prospectsDiscovered: totalDiscovered,
+        prospectsResearched: totalResearched,
+        highIntentProspects: highIntentCount,
+        messagesPrepared,
+        messagesSent,
+        repliesReceived: responsesReceived,
+        interestedLeads: takeoverCount,
+        meetingsScheduled,
+        pipelineValue
+      },
+      topPerformingCampaign,
+      bestOffer,
+      recommendedNextAction: takeoverCount > 0
+        ? `🚨 Review ${takeoverCount} hot lead(s) requiring human takeover.`
+        : 'No action required.'
+    });
+  } catch (err: any) {
+    return NextResponse.json({
+      error: 'DATABASE_UNAVAILABLE',
+      message: 'Daily report could not be generated.'
+    }, { status: 500 });
+  }
 }

@@ -1,10 +1,22 @@
 import fs from 'fs';
 import path from 'path';
 
+/**
+ * PROXIMA DATABASE ARCHITECTURE
+ * Storage Type: LOCAL DATABASE (LOCAL FILE SYSTEM / JSON ABSTRACTED STORE)
+ * Production Notice: NOT PRODUCTION PERSISTENT ON VERCEL SERVERLESS.
+ * Production Deployments require an external persistent database service (PostgreSQL/Cloud SQL).
+ */
+
 export interface PreparedQuery {
   get: (...params: any[]) => any;
   all: (...params: any[]) => any[];
   run: (...params: any[]) => { changes: number; lastInsertRowid: number };
+}
+
+export interface DatabaseAdapter {
+  prepare(sql: string): PreparedQuery;
+  count(tableName: string, predicate?: (row: any) => boolean): number;
 }
 
 export interface AgentRecord {
@@ -50,7 +62,7 @@ export interface ExperimentRecord {
   conversion_rate?: number;
 }
 
-class LocalDatabase {
+export class LocalJsonDatabase implements DatabaseAdapter {
   private dbPath: string;
   private data: Record<string, any[]>;
 
@@ -104,6 +116,15 @@ class LocalDatabase {
     if (changed) this.saveData();
   }
 
+  public count(tableName: string, predicate?: (row: any) => boolean): number {
+    const tableKey = tableName.toLowerCase();
+    const rows = this.data[tableKey] || [];
+    if (predicate) {
+      return rows.filter(predicate).length;
+    }
+    return rows.length;
+  }
+
   public prepare(sql: string): PreparedQuery {
     const cleanSql = sql.trim();
     const isSelect = /^SELECT/i.test(cleanSql);
@@ -119,6 +140,22 @@ class LocalDatabase {
     return {
       get: (...params: any[]) => {
         const rows = this.data[tableName] || [];
+
+        // Handle SELECT COUNT(*) as cnt queries gracefully
+        if (/SELECT\s+COUNT\(\*\)\s+as\s+cnt/i.test(cleanSql)) {
+          let cnt = 0;
+          if (cleanSql.includes("WHERE intent_score >= 70")) {
+            cnt = rows.filter(r => (r.intent_score || 0) >= 70).length;
+          } else if (cleanSql.includes("WHERE human_takeover = 1")) {
+            cnt = rows.filter(r => r.human_takeover === 1).length;
+          } else if (cleanSql.includes("WHERE status = 'ACTIVE'")) {
+            cnt = rows.filter(r => r.status === 'ACTIVE').length;
+          } else {
+            cnt = rows.length;
+          }
+          return { cnt };
+        }
+
         if (cleanSql.includes('WHERE id = ?')) {
           return rows.find(r => r.id === params[0]);
         }
@@ -201,17 +238,19 @@ class LocalDatabase {
   }
 }
 
-let dbInstance: LocalDatabase | null = null;
+export type LocalDatabase = LocalJsonDatabase;
 
-export function initDb(): LocalDatabase {
+let dbInstance: LocalJsonDatabase | null = null;
+
+export function initDb(): LocalJsonDatabase {
   if (!dbInstance) {
     const dbPath = path.join(process.cwd(), 'db.json');
-    dbInstance = new LocalDatabase(dbPath);
+    dbInstance = new LocalJsonDatabase(dbPath);
     console.log('✅ Local Database Initialized Successfully.');
   }
   return dbInstance;
 }
 
-export function getDb(): LocalDatabase {
+export function getDb(): LocalJsonDatabase {
   return initDb();
 }

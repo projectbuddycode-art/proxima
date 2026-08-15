@@ -4,6 +4,8 @@ import { OllamaProvider } from '@/lib/ai/provider';
 import fs from 'fs';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     initDb();
@@ -14,16 +16,16 @@ export async function GET() {
     const knowledgeFiles = fs.existsSync(knowledgeDir) ? fs.readdirSync(knowledgeDir).filter(f => f.endsWith('.md')) : [];
 
     // Check Ollama Connection
-    const ollamaUrl = (db.prepare("SELECT value FROM settings WHERE key = 'ollama_base_url'").get() as any)?.value || 'http://localhost:11434';
-    const ollamaModel = (db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as any)?.value || 'llama3';
+    const ollamaUrl = (db.prepare("SELECT value FROM settings WHERE key = 'ollama_base_url'").get() as any)?.value || 'http://127.0.0.1:11434';
+    const ollamaModel = (db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as any)?.value || 'qwen2.5-coder:7b';
 
     const provider = new OllamaProvider(ollamaUrl, ollamaModel);
     const ollamaStatus = await provider.testConnection();
 
-    // Counts
-    const prospectCount = (db.prepare('SELECT COUNT(*) as cnt FROM prospects').get() as any).cnt;
-    const campaignCount = (db.prepare('SELECT COUNT(*) as cnt FROM campaigns').get() as any).cnt;
-    const takeoverCount = (db.prepare('SELECT COUNT(*) as cnt FROM prospects WHERE human_takeover = 1').get() as any).cnt;
+    // Database Counts via DatabaseAdapter count()
+    const prospectCount = db.count('prospects');
+    const campaignCount = db.count('campaigns');
+    const takeoverCount = db.count('prospects', r => r.human_takeover === 1);
 
     return NextResponse.json({
       status: 'online',
