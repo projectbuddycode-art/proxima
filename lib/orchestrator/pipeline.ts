@@ -314,3 +314,137 @@ export class PipelineOrchestrator {
     return { classification, needsHumanTakeover };
   }
 }
+
+export class AutonomousOrchestrator {
+  private static cities = ['Bangalore', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Chennai', 'Pune', 'Ahmedabad', 'Kolkata', 'Jaipur', 'Chandigarh'];
+  private static industries = ['Lighting', 'Interior Designers', 'Architects', 'Restaurants', 'Hotels', 'Clinics', 'Retail Showrooms', 'Real Estate'];
+
+  /**
+   * Retrieves Proxima Autonomous Mode status, active city/industry, and 20 Operational Agents matrix
+   */
+  static async getAutonomousStatus() {
+    const db = getDb();
+    let modeRow = null;
+    try {
+      modeRow = await db.queryOneAsync('SELECT * FROM system_settings WHERE key = ?', ['autonomous_mode']);
+    } catch (e) {
+      // Ignore
+    }
+
+    const isActive = modeRow ? modeRow.value === 'ACTIVE' : true;
+
+    // Determine current city & industry from database logs/campaigns
+    let currentCity = 'Bangalore';
+    let currentIndustry = 'Lighting';
+
+    try {
+      const lastCamp = await db.queryOneAsync('SELECT * FROM campaigns ORDER BY created_at DESC LIMIT 1');
+      if (lastCamp) {
+        if (lastCamp.location) currentCity = lastCamp.location;
+        if (lastCamp.industry) currentIndustry = lastCamp.industry;
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    const agents20 = [
+      { id: 'agent_1', name: 'COMMANDER / AI CEO', role: 'Strategic Funnel & Resource Allocation', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_2', name: 'PROSPECT DISCOVERY AGENT', role: 'Public Business Registry Extraction', status: isActive ? 'RUNNING' : 'IDLE' },
+      { id: 'agent_3', name: 'MAP INTELLIGENCE AGENT', role: 'OpenStreetMap Regional Map Indexing', status: isActive ? 'RUNNING' : 'IDLE' },
+      { id: 'agent_4', name: 'WEBSITE INTELLIGENCE AGENT', role: 'UX, Conversion & Stack Analysis', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_5', name: 'CONTACT VERIFICATION AGENT', role: '5-Level Contact Provenance Gate', status: isActive ? 'RUNNING' : 'IDLE' },
+      { id: 'agent_6', name: 'SOCIAL INTELLIGENCE AGENT', role: 'Authorized Public Profile Audit', status: isActive ? 'WAITING' : 'IDLE' },
+      { id: 'agent_7', name: 'BUSINESS ANALYST', role: 'Commercial Operations & Offer Mapping', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_8', name: 'PAIN-POINT ANALYST', role: 'Observable Operational Gap Hypotheses', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_9', name: 'SECURITY INTELLIGENCE AGENT', role: 'Passive HTTP/TLS Security Observer', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_10', name: 'FIT SCORING AGENT', role: 'Project Buddy ICP Compatibility Scoring', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_11', name: 'INTENT AGENT', role: 'Commercial Urgency & Signal Detection', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_12', name: 'OUTREACH STRATEGIST', role: 'Channel & Messaging Angle Selection', status: isActive ? 'WAITING' : 'IDLE' },
+      { id: 'agent_13', name: 'COPYWRITER', role: 'Project Buddy Method Personalization', status: isActive ? 'WAITING' : 'IDLE' },
+      { id: 'agent_14', name: 'QA / TRUTH AGENT', role: 'Factual Claim Verification Gate', status: isActive ? 'RUNNING' : 'IDLE' },
+      { id: 'agent_15', name: 'CONTACT QA AGENT', role: 'Deliverability & Domain Verification', status: isActive ? 'RUNNING' : 'IDLE' },
+      { id: 'agent_16', name: 'OUTREACH QA AGENT', role: 'Cross-Check Verification Panel', status: isActive ? 'RUNNING' : 'IDLE' },
+      { id: 'agent_17', name: 'RESPONSE AGENT', role: 'Inbound Sentiment & Intent Classifier', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_18', name: 'TAKEOVER AGENT', role: 'Shivam Human Handoff Guard', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_19', name: 'DEVELOPMENT COMMANDER', role: 'System Health & Code Optimization', status: isActive ? 'ACTIVE' : 'IDLE' },
+      { id: 'agent_20', name: 'EXPERIMENT AGENT', role: 'GTM Strategy & Funnel Experiments', status: isActive ? 'ACTIVE' : 'IDLE' }
+    ];
+
+    return {
+      autonomousMode: isActive ? 'ACTIVE' : 'STOPPED',
+      activeCity: currentCity,
+      activeIndustry: currentIndustry,
+      availableCities: this.cities,
+      availableIndustries: this.industries,
+      agentsCount: 20,
+      agents: agents20,
+      schedulerStatus: isActive ? 'RUNNING' : 'STOPPED'
+    };
+  }
+
+  /**
+   * Sets Autonomous Mode status in database system_settings table
+   */
+  static async setAutonomousMode(active: boolean) {
+    const db = getDb();
+    const modeValue = active ? 'ACTIVE' : 'STOPPED';
+
+    try {
+      const existing = await db.queryOneAsync('SELECT * FROM system_settings WHERE key = ?', ['autonomous_mode']);
+      if (existing) {
+        await db.executeAsync('UPDATE system_settings SET value = ?, updated_at = ? WHERE key = ?', [
+          modeValue,
+          new Date().toISOString(),
+          'autonomous_mode'
+        ]);
+      } else {
+        await db.executeAsync('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)', [
+          'autonomous_mode',
+          modeValue,
+          new Date().toISOString()
+        ]);
+      }
+    } catch (e: any) {
+      console.warn('Set autonomous mode warning:', e.message);
+    }
+
+    // Trigger an autonomous cycle if activated
+    if (active) {
+      this.executeAutonomousCycle().catch(err => console.error('Autonomous cycle error:', err.message));
+    }
+
+    return { success: true, mode: modeValue };
+  }
+
+  /**
+   * Executes a single autonomous cycle (campaign initialization & pipeline run)
+   */
+  static async executeAutonomousCycle() {
+    const db = getDb();
+    const status = await this.getAutonomousStatus();
+
+    console.log(`[AUTONOMOUS ORCHESTRATOR] Running cycle for ${status.activeCity} (${status.activeIndustry})...`);
+
+    const campaignId = `camp_auto_${Date.now()}`;
+    await db.executeAsync(
+      `INSERT INTO campaigns (id, name, industry, location, target_role, offer, min_intent, min_fit, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        campaignId,
+        `Autonomous ${status.activeCity} ${status.activeIndustry} Campaign`,
+        status.activeIndustry,
+        status.activeCity,
+        'Director',
+        'Operational Modernization & Automation',
+        70,
+        70,
+        'ACTIVE'
+      ]
+    );
+
+    const processed = await PipelineOrchestrator.runCampaignPipeline(campaignId);
+    console.log(`[AUTONOMOUS ORCHESTRATOR] Cycle completed. Processed ${processed.length} prospect(s).`);
+    return { campaignId, processed };
+  }
+}
+

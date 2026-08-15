@@ -24,7 +24,12 @@ const ALLOWED_TABLES = new Set([
   'messages',
   'followups',
   'sources',
-  'proxima_logs'
+  'proxima_logs',
+  'system_settings',
+  'map_businesses',
+  'map_regions',
+  'social_integrations',
+  'agent_statuses'
 ]);
 
 function convertSqlPlaceholders(sql: string): string {

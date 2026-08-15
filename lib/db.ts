@@ -133,7 +133,12 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       'messages',
       'followups',
       'sources',
-      'proxima_logs'
+      'proxima_logs',
+      'system_settings',
+      'map_businesses',
+      'map_regions',
+      'social_integrations',
+      'agent_statuses'
     ];
     let changed = false;
     for (const t of tables) {
@@ -376,6 +381,7 @@ export class LocalJsonDatabase implements DatabaseAdapter {
         }
 
         if (cleanSql.includes('WHERE id = ?')) return rows.find(r => r.id === params[0]);
+        if (cleanSql.includes('WHERE key = ?')) return rows.find(r => r.key === params[0]);
         if (cleanSql.includes('WHERE pairing_code = ?')) return rows.find(r => r.pairing_code === params[0]);
         if (cleanSql.includes('WHERE token_hash = ?')) return rows.find(r => r.token_hash === params[0]);
         if (cleanSql.includes('WHERE bridge_id = ?')) return rows.find(r => r.bridge_id === params[0]);
@@ -406,6 +412,17 @@ export class LocalJsonDatabase implements DatabaseAdapter {
             this.data[tableName].push(newObj);
             this.saveData();
             return { changes: 1, lastInsertRowid: Date.now() };
+          }
+        }
+
+        if (isUpdate && cleanSql.includes('WHERE key = ?')) {
+          const keyVal = params[params.length - 1];
+          const item = this.data[tableName].find(r => r.key === keyVal);
+          if (item) {
+            if (cleanSql.includes('value = ?')) item.value = params[0];
+            if (cleanSql.includes('updated_at = ?')) item.updated_at = params[1];
+            this.saveData();
+            return { changes: 1, lastInsertRowid: 0 };
           }
         }
 

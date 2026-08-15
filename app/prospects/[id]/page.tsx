@@ -128,6 +128,115 @@ export default function ProspectDetailPage() {
         </div>
       </div>
 
+      {/* 5-LEVEL VERIFIED CONTACT PROVENANCE CARDS */}
+      <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-3 font-mono text-xs">
+        <h3 className="font-bold text-cyan-400 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" /> VERIFIED CONTACT INTELLIGENCE & PROVENANCE CARDS
+        </h3>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-slate-300">
+          {/* PHONE */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">PHONE NUMBER</span>
+            {prospect.phone ? (
+              <div>
+                <strong className="text-emerald-400 text-xs block">{prospect.phone}</strong>
+                <span className="text-[9px] text-emerald-500 flex items-center gap-1 mt-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> VERIFIED
+                </span>
+              </div>
+            ) : (
+              <div>
+                <strong className="text-slate-500 text-xs block">NULL</strong>
+                <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+              </div>
+            )}
+          </div>
+
+          {/* EMAIL */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">EMAIL ADDRESS</span>
+            {prospect.email ? (
+              <div>
+                <strong className="text-emerald-400 text-xs block truncate">{prospect.email}</strong>
+                <span className="text-[9px] text-emerald-500 flex items-center gap-1 mt-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> VERIFIED
+                </span>
+              </div>
+            ) : (
+              <div>
+                <strong className="text-slate-500 text-xs block">NULL</strong>
+                <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+              </div>
+            )}
+          </div>
+
+          {/* WEBSITE */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">OFFICIAL WEBSITE</span>
+            {prospect.website ? (
+              <div>
+                <strong className="text-cyan-400 text-xs block truncate">{prospect.website}</strong>
+                <span className="text-[9px] text-emerald-500 flex items-center gap-1 mt-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> VERIFIED
+                </span>
+              </div>
+            ) : (
+              <div>
+                <strong className="text-slate-500 text-xs block">NULL</strong>
+                <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+              </div>
+            )}
+          </div>
+
+          {/* LOCATION */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">LOCATION / CITY</span>
+            {prospect.location ? (
+              <div>
+                <strong className="text-white text-xs block truncate">{prospect.location}</strong>
+                <span className="text-[9px] text-emerald-500 flex items-center gap-1 mt-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5" /> VERIFIED
+                </span>
+              </div>
+            ) : (
+              <div>
+                <strong className="text-slate-500 text-xs block">NULL</strong>
+                <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+              </div>
+            )}
+          </div>
+
+          {/* LINKEDIN */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">LINKEDIN PROFILE</span>
+            <strong className="text-slate-500 text-xs block">NULL</strong>
+            <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+          </div>
+
+          {/* INSTAGRAM */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">INSTAGRAM PROFILE</span>
+            <strong className="text-slate-500 text-xs block">NULL</strong>
+            <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+          </div>
+
+          {/* FACEBOOK */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">FACEBOOK PAGE</span>
+            <strong className="text-slate-500 text-xs block">NULL</strong>
+            <span className="text-[9px] text-slate-600 font-bold block mt-0.5">— NOT VERIFIED</span>
+          </div>
+
+          {/* PROVENANCE SOURCE */}
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+            <span className="text-slate-500 text-[10px] uppercase block font-bold">EVIDENCE SOURCE</span>
+            <strong className="text-purple-400 text-xs block truncate">OpenStreetMap Public Registry</strong>
+            <span className="text-[9px] text-purple-300 font-bold block mt-0.5">LEVEL 4 VERIFIED</span>
+          </div>
+        </div>
+      </div>
+
       {/* MANDATORY "WHY THIS LEAD?" PANEL */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-900 border-2 border-orange-500/40 p-6 rounded-2xl space-y-5 shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">

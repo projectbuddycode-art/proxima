@@ -204,6 +204,13 @@ export default function DashboardHome() {
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
+            onClick={() => handleCreateCampaign()}
+            disabled={executing}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-600 hover:to-cyan-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5"
+          >
+            <Bot className="w-4 h-4" /> {executing ? 'STARTING AUTONOMOUS OPERATION...' : 'START PROXIMA AUTONOMOUSLY'}
+          </button>
+          <button
             onClick={() => setShowFindModal(true)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all transform hover:-translate-y-0.5"
           >
@@ -319,29 +326,44 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* Top Metrics Grid */}
+      {/* Top Metrics & Daily Target vs Actual Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800 space-y-1">
           <p className="text-xs font-medium text-slate-400">Total Verified Discovered</p>
-          <p className="text-2xl font-bold text-white mt-1 font-mono">{prospects.length}</p>
-          <p className="text-[11px] text-cyan-400 mt-1 font-mono">100% Real Businesses</p>
+          <div className="flex items-baseline justify-between">
+            <p className="text-2xl font-bold text-white font-mono">{prospects.length}</p>
+            <span className="text-[10px] text-slate-400 font-mono">Target: 30</span>
+          </div>
+          <p className="text-[11px] text-cyan-400 font-mono">Gap: {Math.max(0, 30 - prospects.length)} remaining</p>
         </div>
-        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800 space-y-1">
           <p className="text-xs font-medium text-slate-400">High-Intent Leads</p>
-          <p className="text-2xl font-bold text-orange-400 mt-1 font-mono">{highIntentProspects.length}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Intent Score ≥ 70</p>
+          <div className="flex items-baseline justify-between">
+            <p className="text-2xl font-bold text-orange-400 font-mono">{highIntentProspects.length}</p>
+            <span className="text-[10px] text-slate-400 font-mono">Target: 10</span>
+          </div>
+          <p className="text-[11px] text-slate-500 font-mono">Gap: {Math.max(0, 10 - highIntentProspects.length)} remaining</p>
         </div>
-        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800 space-y-1">
           <p className="text-xs font-medium text-slate-400">Shivam Takeovers</p>
-          <p className="text-2xl font-bold text-red-400 mt-1 font-mono">{takeoverProspects.length}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Hot Shivam Leads</p>
+          <div className="flex items-baseline justify-between">
+            <p className="text-2xl font-bold text-red-400 font-mono">{takeoverProspects.length}</p>
+            <span className="text-[10px] text-slate-400 font-mono">Target: 5</span>
+          </div>
+          <p className="text-[11px] text-slate-500 font-mono">Gap: {Math.max(0, 5 - takeoverProspects.length)} remaining</p>
         </div>
-        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800">
+
+        <div className="p-4 bg-[#1C2541]/50 rounded-xl border border-slate-800 space-y-1">
           <p className="text-xs font-medium text-slate-400">Verified Pipeline Value</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
-            ${(highIntentProspects.length * 8500).toLocaleString()}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-1">Commercial Value</p>
+          <div className="flex items-baseline justify-between">
+            <p className="text-2xl font-bold text-emerald-400 font-mono">
+              ${(highIntentProspects.length * 8500).toLocaleString()}
+            </p>
+            <span className="text-[10px] text-slate-400 font-mono">Target: $85,000</span>
+          </div>
+          <p className="text-[11px] text-slate-500 font-mono">Commercial Value</p>
         </div>
       </div>
 
