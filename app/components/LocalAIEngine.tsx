@@ -80,7 +80,7 @@ export default function LocalAIEngine() {
               setTestResult({
                 status: job.status === 'COMPLETED' ? 'SUCCESS' : 'FAILED',
                 output: job.result?.output || 'PROXIMA LOCAL OLLAMA CONNECTED',
-                model: job.result?.model || health.activeModel || 'qwen2.5-coder:7b',
+                model: job.result?.model || health.activeModel || 'qwen2.5-coder:3b',
                 bridge_id: job.result?.bridge_id || health.bridge_id || 'bridge_local',
                 latency_ms: job.latency_ms || latency
               });
@@ -97,7 +97,7 @@ export default function LocalAIEngine() {
           setTestResult({
             status: health.ollama === 'REACHABLE' ? 'SUCCESS' : 'OLLAMA_OFFLINE',
             output: health.ollama === 'REACHABLE' ? 'PROXIMA LOCAL OLLAMA CONNECTED' : 'Ollama local server offline',
-            model: health.activeModel || 'qwen2.5-coder:7b',
+            model: health.activeModel || 'qwen2.5-coder:3b',
             bridge_id: health.bridge_id || 'bridge_local',
             latency_ms: latency
           });

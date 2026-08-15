@@ -91,7 +91,7 @@ async function sendOutboundHeartbeat() {
       arch: os.arch(),
       ollama_version: status.version,
       models: status.models,
-      active_model: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:7b',
+      active_model: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:3b',
       status: status.reachable ? 'CONNECTED' : 'DEGRADED',
       token: BRIDGE_TOKEN
     };
@@ -133,7 +133,7 @@ async function pollGatewayJobs() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: process.env.OLLAMA_MODEL || ollamaStatus.models[0] || 'qwen2.5-coder:7b',
+                model: process.env.OLLAMA_MODEL || ollamaStatus.models[0] || 'qwen2.5-coder:3b',
                 messages: [{ role: 'user', content: promptStr }],
                 stream: false
               })
@@ -156,7 +156,7 @@ async function pollGatewayJobs() {
             request_id: data.job.request_id,
             result: {
               output: outputText,
-              model: process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b',
+              model: process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b',
               bridge_id: bridgeId,
               status: ollamaStatus.reachable ? 'SUCCESS' : 'OLLAMA_OFFLINE'
             },
@@ -198,7 +198,7 @@ const server = http.createServer(async (req, res) => {
       ollama: status.reachable ? 'REACHABLE' : 'UNREACHABLE',
       version: status.version,
       models: status.models,
-      activeModel: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:7b',
+      activeModel: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:3b',
       bridge_id: bridgeId,
       timestamp: new Date().toISOString()
     }));

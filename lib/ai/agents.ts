@@ -5,7 +5,7 @@ import path from 'path';
 
 export function getAIProvider(): AIProvider {
   const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-  const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
+  const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b';
   return new OllamaProvider(baseUrl, model);
 }
 

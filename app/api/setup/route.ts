@@ -12,7 +12,7 @@ export async function GET() {
     const ollamaModelRow = await db.queryOneAsync<{ value: string }>("SELECT value FROM settings WHERE key = 'ollama_model'");
 
     const ollamaUrl = ollamaUrlRow?.value || 'http://127.0.0.1:11434';
-    const ollamaModel = ollamaModelRow?.value || 'qwen2.5-coder:7b';
+    const ollamaModel = ollamaModelRow?.value || 'qwen2.5-coder:3b';
 
     return NextResponse.json({
       status: 'READY',

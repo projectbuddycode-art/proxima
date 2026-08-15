@@ -78,7 +78,7 @@ async function runProximaProductionReleaseSuite() {
     bridge_id: validSession?.bridge_id || 'bridge_a8f9c2d1',
     token: pairResult.token || 'test_token',
     ollama_version: '0.3.0',
-    models: ['qwen2.5-coder:7b', 'llama3']
+    models: ['qwen2.5-coder:3b', 'llama3']
   });
 
   const gwStatus = await ProximaCloudGateway.getStatus();

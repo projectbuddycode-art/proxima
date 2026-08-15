@@ -19,7 +19,7 @@
 | **6. SHA-256 Bearer Token Auth** | `IMPLEMENTED` | Stores SHA-256 token hash `token_hash` in `bridge_sessions`. Enforces `Authorization: Bearer <token>`. |
 | **7. Atomic Job Queue Claiming** | `IMPLEMENTED` | `claimNextJob(bridgeId)` performs atomic DB update `QUEUED` -> `CLAIMED` with `claimed_at` timestamp. |
 | **8. Proxima Local Bridge** | `IMPLEMENTED` | Standalone Node.js service (`proxima-local-bridge/index.mjs`) on port 11435 with persistent dynamic `bridge_id`. |
-| **9. Ollama Verification** | `IMPLEMENTED` | Queries `/api/version` and `/api/tags` at `http://127.0.0.1:11434` with default model `qwen2.5-coder:7b`. |
+| **9. Ollama Verification** | `IMPLEMENTED` | Queries `/api/version` and `/api/tags` at `http://127.0.0.1:11434` with default model `qwen2.5-coder:3b`. |
 | **10. TEST LOCAL OLLAMA UI Action** | `IMPLEMENTED` | Dedicated button in `LocalAIEngine.tsx` executing full end-to-end inference test. |
 | **11. Local Command Security** | `IMPLEMENTED` | Strict allowlist (`ollama_start`, `ollama_stop`, `ollama_status`, `ollama_models`, etc.). Rejects `shell`/`exec`. |
 | **12. CORS Origin Restriction** | `IMPLEMENTED` | Configured via `PROXIMA_ALLOWED_ORIGIN` env variable in `proxima-local-bridge/index.mjs`. |

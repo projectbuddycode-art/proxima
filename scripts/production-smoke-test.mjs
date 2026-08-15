@@ -47,7 +47,7 @@ async function runProductionSmokeTest() {
 
   // 6. Bridge Heartbeat Upsert (ON CONFLICT token_hash update)
   console.log('[SMOKE 6/14] Testing Authenticated Bridge Heartbeat Upsert...');
-  const hb1 = await ProximaCloudGateway.handleHeartbeat({ token: pairRes.token || '', os: 'Windows_NT', arch: 'x64', ollama_version: '0.3.0', models: ['qwen2.5-coder:7b'] });
+  const hb1 = await ProximaCloudGateway.handleHeartbeat({ token: pairRes.token || '', os: 'Windows_NT', arch: 'x64', ollama_version: '0.3.0', models: ['qwen2.5-coder:3b'] });
   const updatedSession = await ProximaCloudGateway.verifyBearerToken(pairRes.token || '');
   console.log(`  ✅ Heartbeat Recorded: Timestamp=${hb1.timestamp}`);
   console.log(`  ✅ Authenticated Session Updated: OS=${updatedSession?.os}, Arch=${updatedSession?.arch}, Version=${updatedSession?.ollama_version}`);

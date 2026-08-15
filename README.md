@@ -2,7 +2,7 @@
 
 [![System Version](https://img.shields.io/badge/version-2.0.0--production-cyan.svg)](https://github.com/projectbuddycode-art/proxima)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/projectbuddycode-art/proxima)
-[![Local AI Engine](https://img.shields.io/badge/ollama-qwen2.5--coder:7b-purple.svg)](http://127.0.0.1:11434)
+[![Local AI Engine](https://img.shields.io/badge/ollama-qwen2.5--coder:3b-purple.svg)](http://127.0.0.1:11434)
 [![Database Adapter](https://img.shields.io/badge/database-PostgreSQL%20%7C%20LocalJSON-blue.svg)](file:///lib/db.ts)
 
 PROXIMA is Project Buddy's central AI operating system responsible for autonomous prospect discovery, 5-level contact provenance verification, consultative outreach, meeting preparation, commercial intelligence, and revenue objective tracking against a ₹10,00,000 monthly target.
@@ -26,7 +26,7 @@ PROXIMA is Project Buddy's central AI operating system responsible for autonomou
                               │
                LOCAL OLLAMA (http://127.0.0.1:11434)
                               │
-                   qwen2.5-coder:7b Model
+                   qwen2.5-coder:3b Model
 ```
 
 Zero ports exposed on your local PC. Zero port forwarding required. All Local Bridge traffic is outbound to Vercel via authenticated Bearer token.
@@ -61,7 +61,7 @@ Push `main` branch or connect repository directly to Vercel. Configure standard 
 1. Download Ollama from [ollama.com](https://ollama.com).
 2. Pull the preferred coding model:
    ```bash
-   ollama pull qwen2.5-coder:7b
+   ollama pull qwen2.5-coder:3b
    ```
 
 ### 5. Launch Proxima Local Bridge
