@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * PROXIMA UNIVERSAL DATABASE ADAPTER ARCHITECTURE
+ * PROXIMA UNIVERSAL ASYNC DATABASE ADAPTER ARCHITECTURE
  * Local Development: LocalJsonDatabase (db.json in process.cwd())
  * Production Vercel: PostgresProductionDatabase via process.env.DATABASE_URL
  */
@@ -17,9 +17,16 @@ export interface DatabaseAdapter {
   type: 'LOCAL_JSON' | 'POSTGRES';
   prepare(sql: string): PreparedQuery;
   count(tableName: string, predicate?: (row: any) => boolean): number;
-  claimJobAtomically?(bridgeId: string): any;
-  validatePairingCodeAtomically?(code: string): { success: boolean; token?: string; message: string };
-  completeJobAtomically?(requestId: string, result: any, latencyMs: number): boolean;
+  countAsync(tableName: string, predicate?: (row: any) => boolean): Promise<number>;
+  createPairingCodeAsync(): Promise<string>;
+  validatePairingCodeAsync(code: string): Promise<{ success: boolean; token?: string; message: string }>;
+  handleHeartbeatAsync(payload: any): Promise<{ ok: boolean; timestamp: string }>;
+  getBridgeStatusAsync(): Promise<{ bridge: any; status: string; mode: string }>;
+  enqueueJobAsync(type: string, payload: any): Promise<any>;
+  claimNextJobAtomicallyAsync(bridgeId: string): Promise<any>;
+  completeJobAtomicallyAsync(requestId: string, result: any, latencyMs: number, bridgeId: string): Promise<boolean>;
+  getJobStatusAsync(requestId: string): Promise<any>;
+  verifyBearerTokenAsync(token: string): Promise<any>;
 }
 
 export interface AgentRecord {
@@ -130,6 +137,180 @@ export class LocalJsonDatabase implements DatabaseAdapter {
     return rows.length;
   }
 
+  public async countAsync(tableName: string, predicate?: (row: any) => boolean): Promise<number> {
+    return this.count(tableName, predicate);
+  }
+
+  public async createPairingCodeAsync(): Promise<string> {
+    const crypto = require('crypto');
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    this.data['pairing_codes'].push({
+      id: `pair_${Date.now()}`,
+      pairing_code: code,
+      expires_at: expiresAt,
+      status: 'ACTIVE',
+      created_at: new Date().toISOString()
+    });
+    this.saveData();
+    return code;
+  }
+
+  public async validatePairingCodeAsync(code: string): Promise<{ success: boolean; token?: string; message: string }> {
+    const crypto = require('crypto');
+    const row = this.data['pairing_codes'].find(r => r.pairing_code === code);
+    if (!row) return { success: false, message: 'Invalid pairing code.' };
+    if (row.status !== 'ACTIVE') return { success: false, message: 'Pairing code already used.' };
+    if (Date.now() > Number(row.expires_at)) {
+      row.status = 'EXPIRED';
+      this.saveData();
+      return { success: false, message: 'Pairing code expired.' };
+    }
+
+    row.status = 'USED';
+    row.used_at = new Date().toISOString();
+
+    const token = `prx_bridge_${crypto.randomBytes(24).toString('hex')}`;
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const bridgeId = `bridge_${crypto.randomBytes(4).toString('hex')}`;
+
+    this.data['bridge_sessions'].push({
+      id: bridgeId,
+      bridge_id: bridgeId,
+      token_hash: tokenHash,
+      machine_id: 'machine_local',
+      os: 'Windows',
+      arch: 'x64',
+      ollama_version: '0.3.0',
+      models: JSON.stringify(['qwen2.5-coder:7b']),
+      active_model: 'qwen2.5-coder:7b',
+      status: 'CONNECTED',
+      last_seen: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    });
+    this.saveData();
+
+    return { success: true, token, message: 'Device paired successfully.' };
+  }
+
+  public async verifyBearerTokenAsync(token: string): Promise<any> {
+    if (!token) return null;
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const session = this.data['bridge_sessions'].find(r => r.token_hash === tokenHash);
+    return session || null;
+  }
+
+  public async handleHeartbeatAsync(payload: any): Promise<{ ok: boolean; timestamp: string }> {
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(payload.token).digest('hex');
+    let session = this.data['bridge_sessions'].find(r => r.token_hash === tokenHash);
+    const timestamp = new Date().toISOString();
+
+    if (session) {
+      session.last_seen = timestamp;
+      session.status = 'CONNECTED';
+      if (payload.machine_id) session.machine_id = payload.machine_id;
+      if (payload.os) session.os = payload.os;
+      if (payload.arch) session.arch = payload.arch;
+      if (payload.ollama_version) session.ollama_version = payload.ollama_version;
+      if (payload.models) session.models = JSON.stringify(payload.models);
+      if (payload.active_model) session.active_model = payload.active_model;
+    } else {
+      const bridgeId = payload.bridge_id || `bridge_${Date.now()}`;
+      session = {
+        id: bridgeId,
+        bridge_id: bridgeId,
+        token_hash: tokenHash,
+        machine_id: payload.machine_id || 'machine_local',
+        os: payload.os || 'Windows',
+        arch: payload.arch || 'x64',
+        ollama_version: payload.ollama_version || '0.3.0',
+        models: JSON.stringify(payload.models || ['qwen2.5-coder:7b']),
+        active_model: payload.active_model || 'qwen2.5-coder:7b',
+        status: 'CONNECTED',
+        last_seen: timestamp,
+        created_at: timestamp
+      };
+      this.data['bridge_sessions'].push(session);
+    }
+    this.saveData();
+    return { ok: true, timestamp };
+  }
+
+  public async getBridgeStatusAsync(): Promise<{ bridge: any; status: string; mode: string }> {
+    const rows = this.data['bridge_sessions'] || [];
+    if (rows.length === 0) return { bridge: null, status: 'BRIDGE_OFFLINE', mode: 'HYBRID' };
+    const session = rows[rows.length - 1];
+    const isStale = (Date.now() - new Date(session.last_seen).getTime()) > 30000;
+    return {
+      bridge: isStale ? { ...session, status: 'OFFLINE' } : session,
+      status: isStale ? 'OFFLINE' : session.status,
+      mode: 'HYBRID'
+    };
+  }
+
+  public async enqueueJobAsync(type: string, payload: any): Promise<any> {
+    const crypto = require('crypto');
+    const reqId = `req_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const jobId = `job_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const job = {
+      id: jobId,
+      request_id: reqId,
+      job_id: jobId,
+      type,
+      payload: JSON.stringify(payload),
+      status: 'QUEUED',
+      created_at: new Date().toISOString()
+    };
+    this.data['ai_jobs'].push(job);
+    this.saveData();
+    return {
+      ...job,
+      payload
+    };
+  }
+
+  public async claimNextJobAtomicallyAsync(bridgeId: string): Promise<any> {
+    const row = this.data['ai_jobs'].find(r => r.status === 'QUEUED');
+    if (!row) return null;
+
+    row.status = 'CLAIMED';
+    row.claimed_at = new Date().toISOString();
+    row.bridge_id = bridgeId;
+    this.saveData();
+
+    return {
+      ...row,
+      payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload
+    };
+  }
+
+  public async completeJobAtomicallyAsync(requestId: string, result: any, latencyMs: number, bridgeId: string): Promise<boolean> {
+    const row = this.data['ai_jobs'].find(r => (r.request_id === requestId || r.job_id === requestId));
+    if (!row) return false;
+    if (row.bridge_id && row.bridge_id !== bridgeId) return false; // Reject forged completions
+    if (row.status === 'COMPLETED') return false; // Reject duplicate completions
+
+    row.status = 'COMPLETED';
+    row.result = JSON.stringify(result);
+    row.latency_ms = latencyMs;
+    row.completed_at = new Date().toISOString();
+    this.saveData();
+    return true;
+  }
+
+  public async getJobStatusAsync(requestId: string): Promise<any> {
+    const row = this.data['ai_jobs'].find(r => (r.request_id === requestId || r.job_id === requestId));
+    if (!row) return null;
+
+    return {
+      ...row,
+      payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload,
+      result: row.result ? (typeof row.result === 'string' ? JSON.parse(row.result) : row.result) : undefined
+    };
+  }
+
   public prepare(sql: string): PreparedQuery {
     const cleanSql = sql.trim();
     const isSelect = /^SELECT/i.test(cleanSql);
@@ -145,8 +326,6 @@ export class LocalJsonDatabase implements DatabaseAdapter {
     return {
       get: (...params: any[]) => {
         const rows = this.data[tableName] || [];
-
-        // Handle SELECT COUNT(*) as cnt queries gracefully
         if (/SELECT\s+COUNT\(\*\)\s+as\s+cnt/i.test(cleanSql)) {
           let cnt = 0;
           if (cleanSql.includes("WHERE intent_score >= 70")) {
@@ -161,30 +340,14 @@ export class LocalJsonDatabase implements DatabaseAdapter {
           return { cnt };
         }
 
-        if (cleanSql.includes('WHERE id = ?')) {
-          return rows.find(r => r.id === params[0]);
-        }
-        if (cleanSql.includes('WHERE pairing_code = ?')) {
-          return rows.find(r => r.pairing_code === params[0]);
-        }
-        if (cleanSql.includes('WHERE token_hash = ?')) {
-          return rows.find(r => r.token_hash === params[0]);
-        }
-        if (cleanSql.includes('WHERE bridge_id = ?')) {
-          return rows.find(r => r.bridge_id === params[0]);
-        }
-        if (cleanSql.includes("key = 'ollama_base_url'")) {
-          return rows.find(r => r.key === 'ollama_base_url');
-        }
-        if (cleanSql.includes("key = 'ollama_model'")) {
-          return rows.find(r => r.key === 'ollama_model');
-        }
-        if (cleanSql.includes("status = 'QUEUED'")) {
-          return rows.find(r => r.status === 'QUEUED');
-        }
-        if (cleanSql.includes("request_id = ?")) {
-          return rows.find(r => r.request_id === params[0] || r.job_id === params[0]);
-        }
+        if (cleanSql.includes('WHERE id = ?')) return rows.find(r => r.id === params[0]);
+        if (cleanSql.includes('WHERE pairing_code = ?')) return rows.find(r => r.pairing_code === params[0]);
+        if (cleanSql.includes('WHERE token_hash = ?')) return rows.find(r => r.token_hash === params[0]);
+        if (cleanSql.includes('WHERE bridge_id = ?')) return rows.find(r => r.bridge_id === params[0]);
+        if (cleanSql.includes("key = 'ollama_base_url'")) return rows.find(r => r.key === 'ollama_base_url');
+        if (cleanSql.includes("key = 'ollama_model'")) return rows.find(r => r.key === 'ollama_model');
+        if (cleanSql.includes("status = 'QUEUED'")) return rows.find(r => r.status === 'QUEUED');
+        if (cleanSql.includes("request_id = ?")) return rows.find(r => r.request_id === params[0] || r.job_id === params[0]);
         return rows[0];
       },
       all: (...params: any[]) => {
@@ -195,9 +358,7 @@ export class LocalJsonDatabase implements DatabaseAdapter {
         return rows;
       },
       run: (...params: any[]) => {
-        if (!this.data[tableName]) {
-          this.data[tableName] = [];
-        }
+        if (!this.data[tableName]) this.data[tableName] = [];
 
         if (isInsert) {
           const colMatches = cleanSql.match(/\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);

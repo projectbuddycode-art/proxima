@@ -1,4 +1,4 @@
-import { initDb, getDb, LocalJsonDatabase } from '../lib/db';
+import { initDb, getDb } from '../lib/db';
 import { getPostgresDb } from '../lib/db/postgres';
 import { PipelineOrchestrator } from '../lib/orchestrator/pipeline';
 import { initializeAgentRegistry } from '../lib/ai/agents/registry';
@@ -20,7 +20,7 @@ import path from 'path';
 
 async function runProximaProductionReleaseSuite() {
   console.log('========================================================================');
-  console.log('🚀 PROXIMA BY PROJECT BUDDY — MASTER PRODUCTIONIZATION TEST SUITE');
+  console.log('🚀 PROXIMA BY PROJECT BUDDY — MASTER FORENSIC TEST SUITE');
   console.log('========================================================================\n');
 
   // Clean test database for fresh run
@@ -56,15 +56,15 @@ async function runProximaProductionReleaseSuite() {
 
   // 2. DB-Backed Persistent Pairing & SHA-256 Bearer Token Verification
   console.log('[TEST 2/11] Verifying DB-Backed Persistent Pairing & SHA-256 Bearer Token Engine...');
-  const pairingCode = ProximaCloudGateway.generatePairingCode();
-  const pairResult = ProximaCloudGateway.validatePairingCode(pairingCode);
+  const pairingCode = await ProximaCloudGateway.generatePairingCode();
+  const pairResult = await ProximaCloudGateway.validatePairingCode(pairingCode);
 
   // Validate reusing pairing code is rejected
-  const rePairResult = ProximaCloudGateway.validatePairingCode(pairingCode);
+  const rePairResult = await ProximaCloudGateway.validatePairingCode(pairingCode);
 
   // Validate invalid token verification
-  const invalidSession = ProximaCloudGateway.verifyBearerToken('invalid_fake_token_123');
-  const validSession = ProximaCloudGateway.verifyBearerToken(pairResult.token || '');
+  const invalidSession = await ProximaCloudGateway.verifyBearerToken('invalid_fake_token_123');
+  const validSession = await ProximaCloudGateway.verifyBearerToken(pairResult.token || '');
 
   console.log(`  ✅ Pairing Code Generated: ${pairingCode} (Stored in DB table pairing_codes)`);
   console.log(`  ✅ Pairing Code Validation: ${pairResult.success ? 'SUCCESS' : 'FAILED'} (Issued Token: ${pairResult.token?.substring(0, 20)}...)`);
@@ -74,14 +74,14 @@ async function runProximaProductionReleaseSuite() {
 
   // 3. Outbound Bearer Token Heartbeat & DB Session Storage
   console.log('[TEST 3/11] Verifying Proxima Local Bridge Outbound Bearer Token Heartbeat...');
-  const heartbeatResult = ProximaCloudGateway.handleHeartbeat({
+  const heartbeatResult = await ProximaCloudGateway.handleHeartbeat({
     bridge_id: validSession?.bridge_id || 'bridge_a8f9c2d1',
     token: pairResult.token || 'test_token',
     ollama_version: '0.3.0',
     models: ['qwen2.5-coder:7b', 'llama3']
   });
 
-  const gwStatus = ProximaCloudGateway.getStatus();
+  const gwStatus = await ProximaCloudGateway.getStatus();
   console.log(`  ✅ Heartbeat Saved in DB: Timestamp=${heartbeatResult.timestamp}`);
   console.log(`  ✅ Proxima Gateway Status: ${gwStatus.status} (BridgeID=${gwStatus.bridge?.bridge_id}, ActiveModel=${gwStatus.bridge?.active_model})\n`);
 
@@ -89,16 +89,16 @@ async function runProximaProductionReleaseSuite() {
   console.log('[TEST 4/11] Verifying Atomic Serverless Job Queue & 5 Concurrent Jobs Execution...');
   const jobs: any[] = [];
   for (let i = 1; i <= 5; i++) {
-    jobs.push(ProximaCloudGateway.enqueueJob('TEST_INFERENCE', { prompt: `Test Prompt ${i}` }));
+    jobs.push(await ProximaCloudGateway.enqueueJob('TEST_INFERENCE', { prompt: `Test Prompt ${i}` }));
   }
   console.log(`  ✅ Enqueued 5 Concurrent Jobs in DB Queue (First JobID=${jobs[0].job_id})`);
 
   let claimedCount = 0;
   for (let i = 0; i < 5; i++) {
-    const claimedJob = ProximaCloudGateway.claimNextJob(validSession?.bridge_id || 'bridge_test');
+    const claimedJob = await ProximaCloudGateway.claimNextJob(validSession?.bridge_id || 'bridge_test');
     if (claimedJob && claimedJob.status === 'CLAIMED') {
       claimedCount++;
-      ProximaCloudGateway.completeJob(claimedJob.request_id, { output: `Result for Job ${i + 1}` }, 100 + i * 10);
+      await ProximaCloudGateway.completeJob(claimedJob.request_id, { output: `Result for Job ${i + 1}` }, 100 + i * 10, validSession?.bridge_id || 'bridge_test');
     }
   }
   console.log(`  ✅ Atomically Claimed & Executed Jobs: ${claimedCount} / 5 (Pass: ${claimedCount === 5})\n`);
@@ -170,7 +170,7 @@ async function runProximaProductionReleaseSuite() {
   console.log(`  ✅ Takeover Reason: ${updatedProspect.takeover_reason}\n`);
 
   console.log('========================================================================');
-  console.log('🎉 ALL 11 PROXIMA MASTER PRODUCTIONIZATION TESTS PASSED CLEANLY!');
+  console.log('🎉 ALL 11 PROXIMA MASTER FORENSIC TESTS PASSED CLEANLY!');
   console.log('========================================================================');
 }
 

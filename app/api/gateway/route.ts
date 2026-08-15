@@ -7,28 +7,28 @@ export async function GET(request: Request) {
   const reqId = searchParams.get('request_id') || searchParams.get('job_id');
 
   if (action === 'pairing_code') {
-    const code = ProximaCloudGateway.generatePairingCode();
+    const code = await ProximaCloudGateway.generatePairingCode();
     return NextResponse.json({ code, expires_in: '10 minutes' });
   }
 
   if (action === 'poll') {
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    const session = ProximaCloudGateway.verifyBearerToken(token);
+    const session = await ProximaCloudGateway.verifyBearerToken(token);
     if (!session) {
       return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Invalid or missing Bearer token.' }, { status: 401 });
     }
 
-    const job = ProximaCloudGateway.claimNextJob(session.bridge_id);
+    const job = await ProximaCloudGateway.claimNextJob(session.bridge_id);
     return NextResponse.json({ job });
   }
 
   if (action === 'job_status' && reqId) {
-    const job = ProximaCloudGateway.getJobStatus(reqId);
+    const job = await ProximaCloudGateway.getJobStatus(reqId);
     return NextResponse.json({ job });
   }
 
-  const status = ProximaCloudGateway.getStatus();
+  const status = await ProximaCloudGateway.getStatus();
   return NextResponse.json(status);
 }
 
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const action = searchParams.get('action');
 
     if (action === 'pair') {
-      const result = ProximaCloudGateway.validatePairingCode(body.code);
+      const result = await ProximaCloudGateway.validatePairingCode(body.code);
       return NextResponse.json(result);
     }
 
@@ -50,24 +50,32 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Missing Bearer token.' }, { status: 401 });
       }
 
-      const result = ProximaCloudGateway.handleHeartbeat({ ...body, token });
+      const session = await ProximaCloudGateway.verifyBearerToken(token);
+      if (!session) {
+        return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Invalid Bearer token.' }, { status: 401 });
+      }
+
+      const result = await ProximaCloudGateway.handleHeartbeat({ ...body, token, bridge_id: session.bridge_id });
       return NextResponse.json(result);
     }
 
     if (action === 'result') {
       const authHeader = request.headers.get('authorization') || '';
       const token = authHeader.replace(/^Bearer\s+/i, '');
-      const session = ProximaCloudGateway.verifyBearerToken(token);
+      const session = await ProximaCloudGateway.verifyBearerToken(token);
       if (!session) {
         return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Invalid or missing Bearer token.' }, { status: 401 });
       }
 
-      const result = ProximaCloudGateway.completeJob(body.request_id, body.result, body.latency_ms || 0);
-      return NextResponse.json({ success: result });
+      const result = await ProximaCloudGateway.completeJob(body.request_id, body.result, body.latency_ms || 0, session.bridge_id);
+      if (!result) {
+        return NextResponse.json({ error: 'FORGED_OR_DUPLICATE_RESULT', message: 'Job does not belong to bridge or is already completed.' }, { status: 403 });
+      }
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'dispatch') {
-      const job = ProximaCloudGateway.enqueueJob(body.type || 'INFERENCE', body.payload || body);
+      const job = await ProximaCloudGateway.enqueueJob(body.type || 'INFERENCE', body.payload || body);
       return NextResponse.json(job);
     }
 

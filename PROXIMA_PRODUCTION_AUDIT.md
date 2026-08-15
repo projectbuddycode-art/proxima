@@ -1,35 +1,34 @@
-# PROXIMA Production Database Migration Audit
+# PROXIMA Forensic Production Database & Gateway Audit
 
 **Date**: 2026-08-15  
 **Product**: PROXIMA by Project Buddy (v2.0 Production Hardened)  
 **Target Repository**: `git@github.com:projectbuddycode-art/proxima.git`  
-**Purpose**: Production Persistent Database Adapter & Dual Persistence Engine Audit  
+**Purpose**: Forensic Code Audit of PostgreSQL Adapter, Gateway API, Atomic Queueing, and Token Security  
 
 ---
 
-## 1. PRODUCTION DATABASE MIGRATION AUDIT MATRIX
+## 1. FORENSIC AUDIT MATRIX
 
-| Operational Area | Current Local State | Production Hardened Target State |
+| Subsystem / Operation | Previous State | Forensic Target State |
 | :--- | :--- | :--- |
-| **1. Database Architecture** | `LocalJsonDatabase` (`db.json`) | **Dual `DatabaseAdapter` Architecture**: `LocalJsonDatabase` (local dev) vs `PostgresProductionDatabase` (Vercel serverless production via `DATABASE_URL`). |
-| **2. Production Persistence** | Local File (`db.json`) | **Serverless PostgreSQL**: External persistent database (Neon / Vercel Postgres / Cloud SQL). |
-| **3. Database Selection** | Hardcoded Local DB | **Dynamic Resolution via `getDb()`**: Checks `process.env.DATABASE_URL`. Uses `PostgresProductionDatabase` if configured, else `LocalJsonDatabase`. |
-| **4. Pairing Codes Table** | Local JSON Store | **Persistent DB Table (`pairing_codes`)**: `pairing_code`, `expires_at`, `status`, `created_at`, `used_at`. Atomic validation across serverless functions. |
-| **5. Bridge Sessions Table** | Local JSON Store | **Persistent DB Table (`bridge_sessions`)**: `bridge_id`, `token_hash`, `machine_id`, `os`, `arch`, `ollama_version`, `models`, `active_model`, `status`, `last_seen`. |
-| **6. AI Jobs Table** | Local JSON Store | **Persistent DB Table (`ai_jobs`)**: `request_id`, `job_id`, `type`, `payload`, `status`, `claimed_at`, `completed_at`, `result`, `latency_ms`, `bridge_id`. |
-| **7. Atomic Job Claiming** | Standard Update | **Atomic Update (`QUEUED` -> `CLAIMED`)**: Locks job with `bridge_id` and `claimed_at` timestamp. Prevents duplicate claims across bridges. |
-| **8. Migration DDL Schema** | Implicit Initialization | **SQL Migration Schema (`lib/db/schema.sql`)**: DDL script creating all production tables and indexes. |
-| **9. Documentation & Setup** | Missing DDL Docs | **Updated `README.md` & `.env.example`**: Includes `DATABASE_URL` setup, PostgreSQL DDL schema, and migration instructions. |
+| **1. Database Adapter API** | Synchronous SQLite emulation (`prepare().get()`) | **100% Async Database Adapter Interface (`DatabaseAdapter`)**: All methods return `Promise<T>`. Supports both PostgreSQL Pool and Local JSON store. |
+| **2. PostgreSQL Engine (`lib/db/postgres.ts`)** | Stubbed placeholder returns (`0`, `null`, `[]`) | **Real Async PostgreSQL Driver (`pg` Pool)**: Implements transactions (`BEGIN...COMMIT`), `FOR UPDATE SKIP LOCKED`, and `ON CONFLICT (token_hash) DO UPDATE`. |
+| **3. Pairing Code Generation & Validation** | In-memory / Mock validation | **Cryptographic Single-Use Pairing (`pairing_codes` table)**: 6-digit code, 10-min expiry, atomic single-use update (`status = 'USED'`). Rejects duplicate reuse. |
+| **4. Bridge Token Security** | `Math.random()` string | **Cryptographically Secure Tokens**: `crypto.randomBytes(32).toString('hex')`. SHA-256 hash `token_hash` stored in DB. Plaintext returned only once. |
+| **5. Heartbeat & Session Management** | Duplicate inserts on heartbeat | **Upsert Session Management**: `UPDATE` or `INSERT ... ON CONFLICT (token_hash) DO UPDATE`. Last seen > 30s calculated server-side as `OFFLINE`. |
+| **6. Atomic Serverless Job Claiming** | Standard `UPDATE` | **Real PostgreSQL Atomic Lock**: `SELECT ... FOR UPDATE SKIP LOCKED` inside transaction. Atomically transitions `QUEUED` -> `CLAIMED` with `bridge_id` lock. |
+| **7. Job Result Verification & Forged Protection** | Unchecked completion | **Strict Result Verification**: Verifies `token_hash`, `bridge_id`, job existence, job ownership, and status (`CLAIMED`/`RUNNING`). Rejects forged completions (HTTP 403). |
+| **8. Smoke Test Harness** | Manual / Unit tests only | **`scripts/production-smoke-test.mjs`**: Executable test suite verifying 14 core database, pairing, auth, atomic claim, and security gates. |
 
 ---
 
-## 2. HARDENING IMPLEMENTATION ROADMAP
-1. Define `DatabaseAdapter` interface in `lib/db.ts` with `type`, `prepare`, `count`, `claimJobAtomically`, `validatePairingCodeAtomically`, and `completeJobAtomically`.
-2. Implement `PostgresProductionDatabase` in `lib/db/postgres.ts` for Vercel serverless production persistence via `DATABASE_URL`.
-3. Create `lib/db/schema.sql` SQL DDL script for PostgreSQL database initialization.
-4. Refactor `getDb()` to dynamically select `PostgresProductionDatabase` if `DATABASE_URL` is set, or `LocalJsonDatabase` for local development.
-5. Upgrade `lib/gateway/server.ts` to consume `DatabaseAdapter` atomic operations for pairing, heartbeat, job polling, and result completion.
-6. Enhance `tests/system.test.ts` to test dynamic `DatabaseAdapter` resolution, local JSON database, atomic job claiming, token hash validation, and pairing code consumption.
-7. Update `.env.example`, `README.md`, `PROXIMA_RELEASE_AUDIT.md`, `PROXIMA_RELEASE_REPORT.md`, `PROXIMA_BRIDGE_RELEASE_REPORT.md`.
+## 2. FORENSIC REFACTORING ROADMAP
+1. Update `lib/db.ts` to define async `DatabaseAdapter` interface (`countAsync`, `claimJobAtomicallyAsync`, `validatePairingCodeAsync`, `completeJobAtomicallyAsync`, etc.).
+2. Refactor `lib/db/postgres.ts` to implement real async PostgreSQL operations using `pg` Pool with transactions and `FOR UPDATE SKIP LOCKED`.
+3. Refactor `LocalJsonDatabase` in `lib/db.ts` to implement async adapter methods for local offline development.
+4. Refactor `lib/gateway/server.ts` to call async adapter methods directly with cryptographic token generation (`crypto.randomBytes(32)`).
+5. Update `app/api/gateway/route.ts` to execute async gateway calls and enforce HTTP 401 / HTTP 403 on invalid or forged requests.
+6. Create `scripts/production-smoke-test.mjs` test script covering 14 security & database operational checks.
+7. Update `tests/system.test.ts` to verify async database adapter compliance and 11 end-to-end system tests.
 8. Run `npm test` and `npm run build` to verify 100% clean compilation.
 9. Commit changes and push to `git push origin main`.
