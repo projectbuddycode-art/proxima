@@ -3,15 +3,21 @@ import { getDb } from '../db';
 import fs from 'fs';
 import path from 'path';
 
-function getAIProvider(): AIProvider {
-  const db = getDb();
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'ollama_base_url'").get() as { value: string } | undefined;
-  const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as { value: string } | undefined;
+export function getAIProvider(): AIProvider {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'ollama_base_url'").get() as { value: string } | undefined;
+    const modelRow = db.prepare("SELECT value FROM settings WHERE key = 'ollama_model'").get() as { value: string } | undefined;
 
-  const baseUrl = row?.value || 'http://localhost:11434';
-  const model = modelRow?.value || 'llama3';
+    const baseUrl = process.env.OLLAMA_BASE_URL || row?.value || 'http://127.0.0.1:11434';
+    const model = process.env.OLLAMA_MODEL || modelRow?.value || 'qwen2.5-coder:7b';
 
-  return new OllamaProvider(baseUrl, model);
+    return new OllamaProvider(baseUrl, model);
+  } catch (err) {
+    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+    const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
+    return new OllamaProvider(baseUrl, model);
+  }
 }
 
 function loadKnowledgeContext(): string {
