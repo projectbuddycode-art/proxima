@@ -22,13 +22,14 @@ import {
   Share2,
   CheckSquare,
   MoreHorizontal,
-  X
+  X,
+  Activity
 } from 'lucide-react';
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(true);
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
@@ -56,20 +57,20 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
 
   const navItems = [
     { section: 'Commander & Strategy' },
-    { href: '/ai-ceo', icon: Bot, label: 'PROXIMA COMMANDER (AI CEO)', highlight: true, color: 'text-cyan-400' },
     { href: '/', icon: LayoutDashboard, label: 'Command Center', color: 'text-cyan-400' },
+    { href: '/ai-ceo', icon: Bot, label: 'PROXIMA COMMANDER (AI CEO)', highlight: true, color: 'text-cyan-400' },
+    { href: '/development', icon: Cpu, label: 'Development Commander', color: 'text-purple-400' },
     { href: '/approvals', icon: CheckSquare, label: 'Approvals Center', color: 'text-emerald-400' },
     { href: '/contacts', icon: ShieldCheck, label: 'Contact Intelligence Panel', color: 'text-emerald-400' },
 
     { section: 'Operations & Engineering' },
+    { href: '/prospects', icon: Users, label: 'Verified Prospects', color: 'text-emerald-400' },
     { href: '/agents', icon: Bot, label: 'Virtual Sales Team (20)', color: 'text-blue-400' },
     { href: '/social-workspace', icon: Eye, label: 'Social Workspace', color: 'text-purple-400' },
-    { href: '/development', icon: Cpu, label: 'Development Commander', color: 'text-purple-400' },
     { href: '/security-intelligence', icon: Lock, label: 'Security Intelligence', color: 'text-emerald-400' },
     { href: '/agent-security', icon: ShieldCheck, label: 'Agent Security Center', color: 'text-purple-400' },
     { href: '/experiments', icon: Compass, label: 'Strategy Experiments', color: 'text-amber-400' },
     { href: '/campaigns', icon: Target, label: 'Campaigns', color: 'text-cyan-400' },
-    { href: '/prospects', icon: Users, label: 'Verified Prospects', color: 'text-emerald-400' },
     { href: '/knowledge', icon: BookOpen, label: 'Knowledge Base', color: 'text-indigo-400' },
 
     { section: 'Settings & Channels' },
@@ -79,15 +80,16 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     { href: '/settings', icon: Settings, label: 'System Settings', color: 'text-slate-400' }
   ];
 
+  // Primary 5 Mobile Destinations
   const mobileBottomNav = [
-    { href: '/', icon: LayoutDashboard, label: 'HOME' },
-    { href: '/prospects', icon: Users, label: 'PROSPECTS' },
-    { href: '/agents', icon: Bot, label: 'AGENTS' },
-    { href: '/social-workspace', icon: Eye, label: 'OUTREACH' }
+    { href: '/', icon: LayoutDashboard, label: 'Home' },
+    { href: '/prospects', icon: Users, label: 'Prospects' },
+    { href: '/agents', icon: Bot, label: 'Agents' },
+    { href: '/development', icon: Cpu, label: 'Command' }
   ];
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#0B132B] text-slate-100 pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col font-sans bg-[#0B132B] text-slate-100 pb-16 md:pb-0 overflow-x-hidden">
       {/* Top Cyber Intelligence Header */}
       <header className="h-16 border-b border-slate-800 bg-[#1C2541]/90 backdrop-blur px-4 md:px-6 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -100,17 +102,18 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
             <Menu className="w-5 h-5 text-cyan-400" />
           </button>
 
-          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 p-2 rounded-xl text-white font-bold tracking-wider shadow-lg shadow-cyan-500/20 text-xs">
+          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 p-2 rounded-xl text-white font-bold tracking-wider shadow-lg shadow-cyan-500/20 text-xs font-mono">
             PRX
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-base md:text-lg tracking-tight text-white font-mono">PROXIMA</h1>
-              <span className="text-[10px] px-2 py-0.5 bg-orange-950 text-orange-400 font-bold border border-orange-800 rounded-full font-mono">
-                AUTONOMOUS
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-950 text-emerald-400 font-bold border border-emerald-800 rounded-full font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                ONLINE
               </span>
             </div>
-            <p className="hidden sm:block text-[10px] md:text-[11px] text-cyan-400 font-medium tracking-wide">AUTONOMOUS GROWTH & REAL PROSPECT INTELLIGENCE</p>
+            <p className="hidden sm:block text-[10px] md:text-[11px] text-cyan-400 font-medium tracking-wide font-mono">PROXIMA AI REVENUE OPERATING SYSTEM</p>
           </div>
         </div>
 
@@ -119,13 +122,13 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
 
           <div className="hidden lg:flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800 font-mono text-[11px]">
             <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
-            <span className="text-slate-300">Takeover Target: <strong className="text-slate-100">Founder Shivam</strong></span>
+            <span className="text-slate-300">Shivam Handoff: <strong className="text-slate-100">READY</strong></span>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 relative">
-        {/* Desktop Collapsible Sidebar */}
+        {/* Desktop Collapsible Sidebar (Icon-First Collapsed by Default) */}
         <aside
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -139,7 +142,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                 return (
                   <div
                     key={idx}
-                    className={`px-3 py-2 font-semibold text-slate-400 uppercase tracking-wider text-[10px] ${
+                    className={`px-3 py-2 font-semibold text-slate-400 uppercase tracking-wider text-[10px] font-mono ${
                       !isExpanded ? 'hidden' : 'block'
                     }`}
                   >
@@ -149,19 +152,22 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
               }
 
               const Icon = item.icon!;
+              const isActive = pathname === item.href;
               return (
                 <Link
                   key={idx}
                   href={item.href!}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all ${
-                    item.highlight
-                      ? 'bg-cyan-950/60 border border-cyan-800/60 text-cyan-300 hover:bg-cyan-900/60'
-                      : 'text-slate-200 hover:bg-slate-800/80 hover:text-cyan-400'
+                    isActive
+                      ? 'bg-cyan-950/80 border border-cyan-800 text-cyan-300 font-bold'
+                      : item.highlight
+                      ? 'bg-purple-950/40 border border-purple-800/40 text-purple-300 hover:bg-purple-900/40'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-cyan-400'
                   }`}
                   title={item.label}
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${item.color}`} />
-                  <span className={`whitespace-nowrap transition-opacity duration-200 ${!isExpanded ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100 w-auto'}`}>
+                  <span className={`whitespace-nowrap font-mono transition-opacity duration-200 ${!isExpanded ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100 w-auto'}`}>
                     {item.label}
                   </span>
                 </Link>
@@ -172,12 +178,12 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
           <div className="pt-3 border-t border-slate-800">
             <div className={`p-2 bg-[#0B132B] rounded-xl border border-slate-800 text-xs space-y-1 font-mono ${!isExpanded ? 'text-center' : ''}`}>
               <div className="flex items-center gap-2 text-cyan-400 font-semibold text-[11px]">
-                <Globe className="w-3.5 h-3.5 shrink-0" />
-                <span className={!isExpanded ? 'hidden' : 'inline'}>PROXIMA COMMANDER</span>
+                <Activity className="w-3.5 h-3.5 shrink-0" />
+                <span className={!isExpanded ? 'hidden' : 'inline'}>PROXIMA OS</span>
               </div>
               {isExpanded && (
                 <p className="text-slate-400 text-[10px] leading-relaxed">
-                  Target: ₹10,00,000 (August 2026).
+                  Real Operations Active.
                 </p>
               )}
             </div>
@@ -191,16 +197,16 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
       </div>
 
       {/* Mobile Drawer Overlay for MORE Menu */}
-      {mobileMoreOpen && (
+      {mobileDrawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 space-y-4 max-h-[80vh] overflow-y-auto font-mono">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                <MoreHorizontal className="w-5 h-5 text-cyan-400" /> PROXIMA NAVIGATION & CHANNELS
+                <MoreHorizontal className="w-5 h-5 text-cyan-400" /> PROXIMA OS MODULES & CHANNELS
               </h3>
               <button
-                onClick={() => setMobileMoreOpen(false)}
-                className="p-1 bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+                onClick={() => setMobileDrawerOpen(false)}
+                className="p-1.5 bg-slate-800 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -208,43 +214,43 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <Link
-                href="/connections"
-                onClick={() => setMobileMoreOpen(false)}
-                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-purple-500"
-              >
-                <Share2 className="w-4 h-4 text-purple-400" /> Connections Center
-              </Link>
-              <Link
                 href="/approvals"
-                onClick={() => setMobileMoreOpen(false)}
+                onClick={() => setMobileDrawerOpen(false)}
                 className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-emerald-500"
               >
                 <CheckSquare className="w-4 h-4 text-emerald-400" /> Approvals Center
               </Link>
               <Link
+                href="/connections"
+                onClick={() => setMobileDrawerOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-purple-500"
+              >
+                <Share2 className="w-4 h-4 text-purple-400" /> Connections Center
+              </Link>
+              <Link
                 href="/ai-ceo"
-                onClick={() => setMobileMoreOpen(false)}
+                onClick={() => setMobileDrawerOpen(false)}
                 className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-cyan-500"
               >
                 <Bot className="w-4 h-4 text-cyan-400" /> AI CEO Commander
               </Link>
               <Link
-                href="/development"
-                onClick={() => setMobileMoreOpen(false)}
-                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-purple-500"
-              >
-                <Cpu className="w-4 h-4 text-purple-400" /> Development Commander
-              </Link>
-              <Link
                 href="/security-intelligence"
-                onClick={() => setMobileMoreOpen(false)}
+                onClick={() => setMobileDrawerOpen(false)}
                 className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-emerald-500"
               >
                 <Lock className="w-4 h-4 text-emerald-400" /> Security Intelligence
               </Link>
               <Link
+                href="/social-workspace"
+                onClick={() => setMobileDrawerOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-purple-500"
+              >
+                <Eye className="w-4 h-4 text-purple-400" /> Social Workspace
+              </Link>
+              <Link
                 href="/settings/email"
-                onClick={() => setMobileMoreOpen(false)}
+                onClick={() => setMobileDrawerOpen(false)}
                 className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-orange-500"
               >
                 <Mail className="w-4 h-4 text-orange-400" /> Titan Email
@@ -273,11 +279,11 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
           );
         })}
         <button
-          onClick={() => setMobileMoreOpen(true)}
-          className="flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 text-slate-400 hover:text-slate-200 transition-colors"
+          onClick={() => setMobileDrawerOpen(true)}
+          className="flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 text-slate-400 hover:text-slate-200 transition-colors font-mono"
         >
           <MoreHorizontal className="w-5 h-5" />
-          <span>MORE</span>
+          <span>More</span>
         </button>
       </div>
     </div>
