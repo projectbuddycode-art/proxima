@@ -104,7 +104,8 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       'proxima_activity_logs',
       'strategy_experiments',
       'bridge_sessions',
-      'ai_jobs'
+      'ai_jobs',
+      'pairing_codes'
     ];
     let changed = false;
     for (const t of tables) {
@@ -159,6 +160,15 @@ export class LocalJsonDatabase implements DatabaseAdapter {
         if (cleanSql.includes('WHERE id = ?')) {
           return rows.find(r => r.id === params[0]);
         }
+        if (cleanSql.includes('WHERE pairing_code = ?')) {
+          return rows.find(r => r.pairing_code === params[0]);
+        }
+        if (cleanSql.includes('WHERE token_hash = ?')) {
+          return rows.find(r => r.token_hash === params[0]);
+        }
+        if (cleanSql.includes('WHERE bridge_id = ?')) {
+          return rows.find(r => r.bridge_id === params[0]);
+        }
         if (cleanSql.includes("key = 'ollama_base_url'")) {
           return rows.find(r => r.key === 'ollama_base_url');
         }
@@ -203,11 +213,23 @@ export class LocalJsonDatabase implements DatabaseAdapter {
           const idVal = params[params.length - 1];
           const item = this.data[tableName].find(r => r.id === idVal);
           if (item) {
+            if (cleanSql.includes('status = ?')) item.status = params[0];
+            if (cleanSql.includes('used_at = ?')) item.used_at = params[1];
             if (cleanSql.includes('human_takeover = ?')) item.human_takeover = params[0];
             if (cleanSql.includes('takeover_reason = ?')) item.takeover_reason = params[1];
-            if (cleanSql.includes('status = ?')) item.status = params[0];
             if (cleanSql.includes('result = ?')) item.result = params[0];
             if (cleanSql.includes('latency_ms = ?')) item.latency_ms = params[1];
+            this.saveData();
+            return { changes: 1, lastInsertRowid: 0 };
+          }
+        }
+
+        if (isUpdate && cleanSql.includes('WHERE pairing_code = ?')) {
+          const codeVal = params[params.length - 1];
+          const item = this.data[tableName].find(r => r.pairing_code === codeVal);
+          if (item) {
+            if (cleanSql.includes('status = ?')) item.status = params[0];
+            if (cleanSql.includes('used_at = ?')) item.used_at = params[1];
             this.saveData();
             return { changes: 1, lastInsertRowid: 0 };
           }
@@ -218,7 +240,9 @@ export class LocalJsonDatabase implements DatabaseAdapter {
           const item = this.data[tableName].find(r => r.request_id === idVal || r.job_id === idVal);
           if (item) {
             item.status = params[0];
-            if (params.length > 2) item.result = params[1];
+            if (cleanSql.includes('claimed_at = ?')) item.claimed_at = params[1];
+            if (cleanSql.includes('bridge_id = ?')) item.bridge_id = params[2];
+            if (params.length > 2 && cleanSql.includes('result = ?')) item.result = params[1];
             this.saveData();
             return { changes: 1, lastInsertRowid: 0 };
           }

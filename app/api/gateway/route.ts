@@ -12,7 +12,14 @@ export async function GET(request: Request) {
   }
 
   if (action === 'poll') {
-    const job = ProximaCloudGateway.claimNextJob();
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const session = ProximaCloudGateway.verifyBearerToken(token);
+    if (!session) {
+      return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Invalid or missing Bearer token.' }, { status: 401 });
+    }
+
+    const job = ProximaCloudGateway.claimNextJob(session.bridge_id);
     return NextResponse.json({ job });
   }
 
@@ -38,12 +45,23 @@ export async function POST(request: Request) {
 
     if (action === 'heartbeat') {
       const authHeader = request.headers.get('authorization') || '';
-      const token = authHeader.replace(/^Bearer\s+/i, '') || body.token || 'prx_bridge_token_default';
+      const token = authHeader.replace(/^Bearer\s+/i, '') || body.token;
+      if (!token) {
+        return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Missing Bearer token.' }, { status: 401 });
+      }
+
       const result = ProximaCloudGateway.handleHeartbeat({ ...body, token });
       return NextResponse.json(result);
     }
 
     if (action === 'result') {
+      const authHeader = request.headers.get('authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '');
+      const session = ProximaCloudGateway.verifyBearerToken(token);
+      if (!session) {
+        return NextResponse.json({ error: 'UNAUTHORIZED_BRIDGE', message: 'Invalid or missing Bearer token.' }, { status: 401 });
+      }
+
       const result = ProximaCloudGateway.completeJob(body.request_id, body.result, body.latency_ms || 0);
       return NextResponse.json({ success: result });
     }

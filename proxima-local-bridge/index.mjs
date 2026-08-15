@@ -8,8 +8,9 @@ const PORT = process.env.BRIDGE_PORT || 11435;
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
 const CLOUD_GATEWAY_URL = process.env.CLOUD_GATEWAY_URL;
 const BRIDGE_TOKEN = process.env.PROXIMA_BRIDGE_TOKEN;
+const ALLOWED_ORIGIN = process.env.PROXIMA_ALLOWED_ORIGIN || 'http://localhost:3000';
 
-// Local Command Allowlist for security protection
+// Local Command Allowlist for security protection (Generic execution commands REJECTED)
 const ALLOWED_COMMANDS = new Set([
   'ollama_start',
   'ollama_stop',
@@ -57,7 +58,7 @@ if (!BRIDGE_TOKEN) {
 }
 console.log('====================================================');
 
-// Retrieve real Ollama version and model tags
+// Retrieve real Ollama version and model tags from local engine
 async function checkOllamaStatus() {
   try {
     const versionRes = await fetch(`${OLLAMA_BASE_URL}/api/version`, { method: 'GET' });
@@ -176,9 +177,8 @@ if (CLOUD_GATEWAY_URL && BRIDGE_TOKEN) {
 
 // Local HTTP listener for local UI control calls
 const server = http.createServer(async (req, res) => {
-  // CORS origin restriction
-  const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  // CORS origin restriction using PROXIMA_ALLOWED_ORIGIN
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 

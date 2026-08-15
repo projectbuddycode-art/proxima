@@ -1,7 +1,9 @@
 import { getDb } from '../db';
+import crypto from 'crypto';
 
 export interface BridgeSession {
   bridge_id: string;
+  token_hash: string;
   machine_id: string;
   os: string;
   arch: string;
@@ -10,7 +12,7 @@ export interface BridgeSession {
   active_model: string;
   status: 'CONNECTED' | 'OFFLINE' | 'DEGRADED';
   last_seen: string;
-  token: string;
+  created_at: string;
 }
 
 export interface QueuedJob {
@@ -21,82 +23,143 @@ export interface QueuedJob {
   status: 'QUEUED' | 'CLAIMED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMEOUT' | 'CANCELLED';
   result?: any;
   latency_ms?: number;
+  bridge_id?: string;
   created_at: string;
+  claimed_at?: string;
   completed_at?: string;
 }
 
 export class ProximaCloudGateway {
-  private static pairingCodes = new Map<string, { code: string; expires_at: number }>();
+  /**
+   * Hashes bridge token securely using SHA-256
+   */
+  static hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
 
   /**
-   * Generates a 6-digit device pairing code for first-time Local Bridge setup
+   * Generates a 6-digit device pairing code and stores it in database table pairing_codes (10 min expiry)
    */
   static generatePairingCode(): string {
+    const db = getDb();
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    this.pairingCodes.set(code, {
-      code,
-      expires_at: Date.now() + 10 * 60 * 1000 // 10 minutes
-    });
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    db.prepare(`
+      INSERT INTO pairing_codes (id, pairing_code, expires_at, status, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(`pair_${Date.now()}`, code, expiresAt, 'ACTIVE', new Date().toISOString());
+
     return code;
   }
 
   /**
-   * Validates pairing code and issues device pairing token
+   * Validates pairing code against DB table pairing_codes, marks used, and issues bridge token
    */
   static validatePairingCode(code: string): { success: boolean; token?: string; message: string } {
-    const item = this.pairingCodes.get(code);
-    if (!item) {
-      return { success: false, message: 'Invalid or expired pairing code.' };
+    const db = getDb();
+    const row = db.prepare("SELECT * FROM pairing_codes WHERE pairing_code = ?").get(code) as any;
+
+    if (!row) {
+      return { success: false, message: 'Invalid pairing code.' };
     }
-    if (Date.now() > item.expires_at) {
-      this.pairingCodes.delete(code);
+    if (row.status !== 'ACTIVE') {
+      return { success: false, message: 'Pairing code already used.' };
+    }
+    if (Date.now() > Number(row.expires_at)) {
+      db.prepare("UPDATE pairing_codes SET status = ? WHERE pairing_code = ?").run('EXPIRED', code);
       return { success: false, message: 'Pairing code expired.' };
     }
-    this.pairingCodes.delete(code);
+
+    // Atomically mark pairing code as USED
+    db.prepare("UPDATE pairing_codes SET status = ?, used_at = ? WHERE pairing_code = ?")
+      .run('USED', new Date().toISOString(), code);
+
+    // Issue new bridge token and store SHA-256 token_hash
     const token = `prx_bridge_token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const tokenHash = this.hashToken(token);
+    const bridgeId = `bridge_${Math.random().toString(36).substring(2, 9)}`;
+
+    db.prepare(`
+      INSERT INTO bridge_sessions (id, bridge_id, token_hash, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      bridgeId,
+      bridgeId,
+      tokenHash,
+      'machine_local',
+      'Windows',
+      'x64',
+      '0.3.0',
+      JSON.stringify(['qwen2.5-coder:7b']),
+      'qwen2.5-coder:7b',
+      'CONNECTED',
+      new Date().toISOString(),
+      new Date().toISOString()
+    );
+
     return { success: true, token, message: 'Device paired successfully.' };
   }
 
   /**
-   * Registers or updates heartbeat from Proxima Local Bridge (sent every 15 seconds with Bearer Token)
+   * Verifies Bearer token against stored token_hash in database
    */
-  static handleHeartbeat(payload: Partial<BridgeSession> & { token: string }): { ok: boolean; timestamp: string } {
+  static verifyBearerToken(token: string): BridgeSession | null {
+    if (!token) return null;
     const db = getDb();
-    const session: BridgeSession = {
-      bridge_id: payload.bridge_id || 'bridge_default',
-      machine_id: payload.machine_id || 'machine_local',
-      os: payload.os || 'Windows',
-      arch: payload.arch || 'x64',
-      ollama_version: payload.ollama_version || '0.3.0',
-      models: payload.models || ['qwen2.5-coder:7b'],
-      active_model: payload.active_model || 'qwen2.5-coder:7b',
-      status: 'CONNECTED',
-      last_seen: new Date().toISOString(),
-      token: payload.token
+    const tokenHash = this.hashToken(token);
+    const session = db.prepare("SELECT * FROM bridge_sessions WHERE token_hash = ?").get(tokenHash) as any;
+    if (!session) return null;
+
+    return {
+      bridge_id: session.bridge_id || session.id,
+      token_hash: session.token_hash,
+      machine_id: session.machine_id,
+      os: session.os,
+      arch: session.arch,
+      ollama_version: session.ollama_version,
+      models: typeof session.models === 'string' ? JSON.parse(session.models) : (session.models || []),
+      active_model: session.active_model,
+      status: session.status,
+      last_seen: session.last_seen,
+      created_at: session.created_at
     };
-
-    db.prepare(`
-      INSERT INTO bridge_sessions (id, bridge_id, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      session.bridge_id,
-      session.bridge_id,
-      session.machine_id,
-      session.os,
-      session.arch,
-      session.ollama_version,
-      JSON.stringify(session.models),
-      session.active_model,
-      session.status,
-      session.last_seen,
-      session.token
-    );
-
-    return { ok: true, timestamp: session.last_seen };
   }
 
   /**
-   * Retrieves active bridge status from DB
+   * Registers or updates heartbeat from Proxima Local Bridge (sent every 15 seconds)
+   */
+  static handleHeartbeat(payload: Partial<BridgeSession> & { token: string }): { ok: boolean; timestamp: string } {
+    const db = getDb();
+    const tokenHash = this.hashToken(payload.token);
+    const existing = db.prepare("SELECT * FROM bridge_sessions WHERE token_hash = ?").get(tokenHash) as any;
+
+    const bridgeId = payload.bridge_id || existing?.bridge_id || `bridge_${Date.now()}`;
+    const timestamp = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO bridge_sessions (id, bridge_id, token_hash, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      bridgeId,
+      bridgeId,
+      tokenHash,
+      payload.machine_id || 'machine_local',
+      payload.os || 'Windows',
+      payload.arch || 'x64',
+      payload.ollama_version || '0.3.0',
+      JSON.stringify(payload.models || ['qwen2.5-coder:7b']),
+      payload.active_model || 'qwen2.5-coder:7b',
+      'CONNECTED',
+      timestamp,
+      timestamp
+    );
+
+    return { ok: true, timestamp };
+  }
+
+  /**
+   * Retrieves active bridge status from DB (reports OFFLINE if last_seen > 30s)
    */
   static getStatus(): { bridge: BridgeSession | null; status: string; mode: string } {
     const db = getDb();
@@ -139,21 +202,26 @@ export class ProximaCloudGateway {
   }
 
   /**
-   * Polled by Local Bridge to claim oldest QUEUED job
+   * Polled by Local Bridge to claim oldest QUEUED job atomically (QUEUED -> CLAIMED)
    */
-  static claimNextJob(): QueuedJob | null {
+  static claimNextJob(bridgeId: string): QueuedJob | null {
     const db = getDb();
     const row = db.prepare("SELECT * FROM ai_jobs WHERE status = 'QUEUED'").get() as any;
     if (!row) return null;
 
-    db.prepare("UPDATE ai_jobs SET status = ? WHERE request_id = ?").run('CLAIMED', row.request_id || row.id);
+    const claimedAt = new Date().toISOString();
+    db.prepare("UPDATE ai_jobs SET status = ?, claimed_at = ?, bridge_id = ? WHERE request_id = ?")
+      .run('CLAIMED', claimedAt, bridgeId, row.request_id || row.id);
+
     return {
       request_id: row.request_id || row.id,
       job_id: row.job_id || row.id,
       type: row.type,
       payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload,
       status: 'CLAIMED',
-      created_at: row.created_at
+      bridge_id: bridgeId,
+      created_at: row.created_at,
+      claimed_at: claimedAt
     };
   }
 
@@ -183,7 +251,10 @@ export class ProximaCloudGateway {
       status: row.status,
       result: row.result ? (typeof row.result === 'string' ? JSON.parse(row.result) : row.result) : undefined,
       latency_ms: row.latency_ms,
-      created_at: row.created_at
+      bridge_id: row.bridge_id,
+      created_at: row.created_at,
+      claimed_at: row.claimed_at,
+      completed_at: row.completed_at
     };
   }
 }
