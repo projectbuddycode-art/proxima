@@ -32,7 +32,7 @@ export class OllamaProvider implements AIProvider {
   async generateStructuredJSON<T>(prompt: string, systemPrompt = ''): Promise<T> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
 
       const res = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',

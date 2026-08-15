@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import { PipelineOrchestrator } from '@/lib/orchestrator/pipeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,19 +23,36 @@ export async function POST(request: Request) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         campaignId,
-        body.name,
-        body.industry,
-        body.location,
-        body.target_role,
-        body.offer,
+        body.name || `${body.location || 'Bangalore'} ${body.industry || 'Commercial'} PROXIMA Campaign`,
+        body.industry || 'Commercial',
+        body.location || 'Bangalore',
+        body.target_role || 'Director',
+        body.offer || 'Operational Modernization & Automation',
         body.min_intent || 70,
         body.min_fit || 70,
         'ACTIVE'
       ]
     );
 
-    return NextResponse.json({ success: true, campaignId });
+    // Execute real pipeline discovery & verification
+    console.log(`[CAMPAIGNS API] Triggering real discovery pipeline for campaign ${campaignId}...`);
+    const processed = await PipelineOrchestrator.runCampaignPipeline(campaignId);
+
+    return NextResponse.json({
+      success: true,
+      campaignId,
+      prospectsDiscovered: processed.length,
+      processed
+    });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('[CAMPAIGNS API ERROR]', err.message);
+    return NextResponse.json(
+      {
+        success: false,
+        error: err.message || 'Discovery execution failed.',
+        code: 'DISCOVERY_EXECUTION_FAILED'
+      },
+      { status: 500 }
+    );
   }
 }

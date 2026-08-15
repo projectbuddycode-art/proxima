@@ -44,14 +44,24 @@ export class PipelineOrchestrator {
       `PROXIMA pipeline started for ${campaign.name} (${campaign.industry})`
     ]);
 
+    console.log('[PROXIMA DISCOVERY] request received');
+    console.log('[PROXIMA DISCOVERY] mode=REAL');
+    console.log(`[PROXIMA DISCOVERY] city=${campaign.location || 'Bangalore'}`);
+    console.log(`[PROXIMA DISCOVERY] industry=${campaign.industry || 'Commercial'}`);
+    console.log('[PROXIMA DISCOVERY] source discovery started');
+
     // 1. Discover Prospects via Prospect Hunter & Map Engine
     const rawProspects = await DiscoveryEngine.discoverProspectsForCampaign(campaign);
     const processed: any[] = [];
+    let verifiedCount = 0;
+    let persistedCount = 0;
+
+    console.log(`[PROXIMA DISCOVERY] source discovery completed. candidates found=${rawProspects.length}`);
 
     await db.executeAsync('INSERT INTO proxima_logs (id, stage, message) VALUES (?, ?, ?)', [
       `log_${Date.now()}_2`,
       'DISCOVERY',
-      `Discovered ${rawProspects.length} raw business records via public intelligence & OpenStreetMap extracts`
+      `Discovered ${rawProspects.length} raw business records via OpenStreetMap public registry`
     ]);
 
     for (const raw of rawProspects) {
@@ -59,19 +69,30 @@ export class PipelineOrchestrator {
         console.warn(`[FIREWALL REJECT] Synthetic/invalid prospect rejected: ${raw.company_name}`);
         continue;
       }
+      verifiedCount++;
 
       // 2. Real Company Identity & Contact Provenance Verification Gate
       const verifiedContact = ContactVerificationEngine.verifyContact(
         'email',
         raw.email,
-        raw.website,
-        'official_website',
+        raw.website || raw.source_url || 'https://www.openstreetmap.org',
+        'public_directory',
         true,
         false
       );
 
-      // Deduplication check
-      let company = await db.queryOneAsync('SELECT * FROM companies WHERE name = ? OR website = ?', [raw.company_name, raw.website]);
+      // Deduplication check by company name & location
+      let company = await db.queryOneAsync(
+        'SELECT * FROM companies WHERE LOWER(name) = LOWER(?) AND LOWER(location) = LOWER(?)',
+        [raw.company_name, raw.location]
+      );
+      if (!company && raw.website && raw.website.trim() !== '') {
+        company = await db.queryOneAsync(
+          'SELECT * FROM companies WHERE LOWER(website) = LOWER(?)',
+          [raw.website]
+        );
+      }
+
       if (!company) {
         const companyId = `comp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         await db.executeAsync(`
@@ -80,7 +101,7 @@ export class PipelineOrchestrator {
         `, [
           companyId,
           raw.company_name,
-          raw.website,
+          raw.website || null,
           raw.industry,
           raw.location,
           `Verified Operating Business discovered via ${raw.source_strategy}`,
@@ -88,6 +109,7 @@ export class PipelineOrchestrator {
           JSON.stringify(raw.raw_signals)
         ]);
         company = await db.queryOneAsync('SELECT * FROM companies WHERE id = ?', [companyId]);
+        persistedCount++;
       }
 
       // Passive Security Observation
@@ -223,6 +245,10 @@ export class PipelineOrchestrator {
         evidenceTier: crossCheck.evidence_tier
       });
     }
+
+    console.log(`[PROXIMA DISCOVERY] verified=${verifiedCount}`);
+    console.log(`[PROXIMA DISCOVERY] persisted=${persistedCount}`);
+    console.log('[PROXIMA DISCOVERY] completed');
 
     return processed;
   }

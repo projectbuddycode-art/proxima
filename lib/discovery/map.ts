@@ -9,51 +9,74 @@ export interface MapBusinessRecord {
   country: string;
   tags: Record<string, string>;
   source: 'OpenStreetMap Regional Extract' | 'User Dataset' | 'Directory API';
+  source_url: string;
+  website?: string;
 }
 
 export class OfflineMapIntelligenceEngine {
   /**
-   * Discovers local businesses from offline OpenStreetMap regional extracts (.osm.pbf)
+   * Discovers real operating businesses from OpenStreetMap public registry (Nominatim API)
    */
   static async discoverFromMapData(category: string, city: string): Promise<MapBusinessRecord[]> {
-    // OpenStreetMap offline tag filtering simulation
-    const categoryLower = category.toLowerCase();
+    const cleanCategory = category.trim();
+    const cleanCity = city.trim();
+    const queryStr = `${cleanCategory} in ${cleanCity}`;
 
-    if (categoryLower.includes('lighting')) {
-      return [
-        {
-          id: 'osm_node_10928374',
-          name: 'Bangalore Luxe Architectural Lighting',
-          category: 'Lighting Showroom',
-          osm_id: 'node/10928374',
-          city,
-          country: 'India',
-          tags: { shop: 'lighting', name: 'Bangalore Luxe Architectural Lighting', amenity: 'showroom' },
-          source: 'OpenStreetMap Regional Extract'
-        },
-        {
-          id: 'osm_node_58291048',
-          name: 'Deccan Commercial Illumination Ltd',
-          category: 'Commercial Lighting Manufacturer',
-          osm_id: 'node/58291048',
-          city,
-          country: 'India',
-          tags: { craft: 'lighting_manufacturer', name: 'Deccan Commercial Illumination Ltd' },
-          source: 'OpenStreetMap Regional Extract'
+    console.log(`[OSM DISCOVERY] Querying real OpenStreetMap registry for: "${queryStr}"`);
+
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryStr)}&format=json&addressdetails=1&limit=15`;
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'ProximaClientAcquisitionOS/2.0 (contact@projectbuddy.in)'
         }
-      ];
-    }
+      });
 
-    return [
-      {
-        id: `osm_${Date.now()}_1`,
-        name: `${city} ${category} Solutions`,
-        category,
-        city,
-        country: 'India',
-        tags: { shop: 'commercial', name: `${city} ${category} Solutions` },
-        source: 'OpenStreetMap Regional Extract'
+      if (!response.ok) {
+        console.warn(`[OSM DISCOVERY WARNING] OpenStreetMap HTTP ${response.status}`);
+        return [];
       }
-    ];
+
+      const data = await response.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        console.log(`[OSM DISCOVERY] OpenStreetMap returned 0 candidates for query: "${queryStr}"`);
+        return [];
+      }
+
+      const results: MapBusinessRecord[] = [];
+
+      for (const item of data) {
+        const rawName = item.display_name ? item.display_name.split(',')[0].trim() : '';
+        if (!rawName || rawName.length < 2) continue;
+
+        const osmIdStr = `${item.osm_type || 'node'}/${item.osm_id || Math.floor(Math.random() * 1000000)}`;
+        const sourceUrl = `https://www.openstreetmap.org/${osmIdStr}`;
+        const catName = item.type || item.class || cleanCategory;
+
+        results.push({
+          id: `osm_${item.osm_id || Date.now()}`,
+          name: rawName,
+          category: catName,
+          osm_id: osmIdStr,
+          latitude: item.lat ? parseFloat(item.lat) : undefined,
+          longitude: item.lon ? parseFloat(item.lon) : undefined,
+          city: cleanCity,
+          country: item.address?.country || 'India',
+          tags: {
+            class: item.class || 'shop',
+            type: item.type || 'commercial',
+            display_name: item.display_name || ''
+          },
+          source: 'OpenStreetMap Regional Extract',
+          source_url: sourceUrl
+        });
+      }
+
+      console.log(`[OSM DISCOVERY] Successfully retrieved ${results.length} real business candidate(s) from OpenStreetMap.`);
+      return results;
+    } catch (err: any) {
+      console.error(`[OSM DISCOVERY ERROR] OpenStreetMap fetch failed:`, err.message);
+      return [];
+    }
   }
 }
