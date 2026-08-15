@@ -29,7 +29,12 @@ const ALLOWED_TABLES = new Set([
   'map_businesses',
   'map_regions',
   'social_integrations',
-  'agent_statuses'
+  'agent_statuses',
+  'integrations',
+  'oauth_states',
+  'evidence_claims',
+  'learning_lessons',
+  'proposals'
 ]);
 
 function convertSqlPlaceholders(sql: string): string {

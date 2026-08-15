@@ -138,7 +138,12 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       'map_businesses',
       'map_regions',
       'social_integrations',
-      'agent_statuses'
+      'agent_statuses',
+      'integrations',
+      'oauth_states',
+      'evidence_claims',
+      'learning_lessons',
+      'proposals'
     ];
     let changed = false;
     for (const t of tables) {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import LocalAIEngine from './LocalAIEngine';
 import {
   Menu,
@@ -18,12 +19,16 @@ import {
   Globe,
   Cpu,
   Eye,
-  Share2
+  Share2,
+  CheckSquare,
+  MoreHorizontal,
+  X
 } from 'lucide-react';
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
@@ -33,7 +38,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
         setCollapsed(saved === 'true');
       }
     } catch (e) {
-      // Ignore localStorage errors
+      // Ignore
     }
   }, []);
 
@@ -47,12 +52,13 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     }
   };
 
-  const isExpanded = !collapsed || isHovered || mobileOpen;
+  const isExpanded = !collapsed || isHovered;
 
   const navItems = [
     { section: 'Commander & Strategy' },
     { href: '/ai-ceo', icon: Bot, label: 'PROXIMA COMMANDER (AI CEO)', highlight: true, color: 'text-cyan-400' },
     { href: '/', icon: LayoutDashboard, label: 'Command Center', color: 'text-cyan-400' },
+    { href: '/approvals', icon: CheckSquare, label: 'Approvals Center', color: 'text-emerald-400' },
     { href: '/contacts', icon: ShieldCheck, label: 'Contact Intelligence Panel', color: 'text-emerald-400' },
 
     { section: 'Operations & Engineering' },
@@ -67,20 +73,28 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
     { href: '/knowledge', icon: BookOpen, label: 'Knowledge Base', color: 'text-indigo-400' },
 
     { section: 'Settings & Channels' },
+    { href: '/connections', icon: Share2, label: 'Connections Center', color: 'text-purple-400' },
     { href: '/settings/social', icon: Share2, label: 'Social Connections', color: 'text-purple-400' },
     { href: '/settings/email', icon: Mail, label: 'Titan Email Settings', color: 'text-orange-400' },
     { href: '/settings', icon: Settings, label: 'System Settings', color: 'text-slate-400' }
   ];
 
+  const mobileBottomNav = [
+    { href: '/', icon: LayoutDashboard, label: 'HOME' },
+    { href: '/prospects', icon: Users, label: 'PROSPECTS' },
+    { href: '/agents', icon: Bot, label: 'AGENTS' },
+    { href: '/social-workspace', icon: Eye, label: 'OUTREACH' }
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#0B132B] text-slate-100">
+    <div className="min-h-screen flex flex-col font-sans bg-[#0B132B] text-slate-100 pb-16 md:pb-0">
       {/* Top Cyber Intelligence Header */}
       <header className="h-16 border-b border-slate-800 bg-[#1C2541]/90 backdrop-blur px-4 md:px-6 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
           {/* Menu Toggle Button ☰ */}
           <button
             onClick={toggleSidebar}
-            className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 transition-colors"
+            className="hidden md:flex p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 transition-colors"
             title="Toggle Sidebar (☰)"
           >
             <Menu className="w-5 h-5 text-cyan-400" />
@@ -91,12 +105,12 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-extrabold text-base md:text-lg tracking-tight text-white font-mono">PROXIMA COMMANDER</h1>
-              <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 bg-orange-950 text-orange-400 font-bold border border-orange-800 rounded-full">
-                AUTONOMOUS MODE
+              <h1 className="font-extrabold text-base md:text-lg tracking-tight text-white font-mono">PROXIMA</h1>
+              <span className="text-[10px] px-2 py-0.5 bg-orange-950 text-orange-400 font-bold border border-orange-800 rounded-full font-mono">
+                AUTONOMOUS
               </span>
             </div>
-            <p className="text-[10px] md:text-[11px] text-cyan-400 font-medium tracking-wide">AUTONOMOUS GROWTH & REAL PROSPECT INTELLIGENCE</p>
+            <p className="hidden sm:block text-[10px] md:text-[11px] text-cyan-400 font-medium tracking-wide">AUTONOMOUS GROWTH & REAL PROSPECT INTELLIGENCE</p>
           </div>
         </div>
 
@@ -111,21 +125,13 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
       </header>
 
       <div className="flex flex-1 relative">
-        {/* Mobile Backdrop */}
-        {mobileOpen && (
-          <div
-            onClick={() => setMobileOpen(false)}
-            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 md:hidden"
-          />
-        )}
-
-        {/* Collapsible Sidebar */}
+        {/* Desktop Collapsible Sidebar */}
         <aside
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className={`fixed md:relative z-40 h-[calc(100vh-4rem)] border-r border-slate-800 bg-[#1C2541]/60 backdrop-blur-md p-3 flex flex-col justify-between transition-all duration-300 ${
+          className={`hidden md:flex h-[calc(100vh-4rem)] border-r border-slate-800 bg-[#1C2541]/60 backdrop-blur-md p-3 flex-col justify-between transition-all duration-300 ${
             isExpanded ? 'w-64' : 'w-16'
-          } ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+          }`}
         >
           <nav className="space-y-1 text-xs overflow-y-auto max-h-[80vh] scrollbar-none">
             {navItems.map((item, idx) => {
@@ -147,7 +153,6 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
                 <Link
                   key={idx}
                   href={item.href!}
-                  onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all ${
                     item.highlight
                       ? 'bg-cyan-950/60 border border-cyan-800/60 text-cyan-300 hover:bg-cyan-900/60'
@@ -172,7 +177,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
               </div>
               {isExpanded && (
                 <p className="text-slate-400 text-[10px] leading-relaxed">
-                  Autonomous Target: ₹10,00,000 (August 2026).
+                  Target: ₹10,00,000 (August 2026).
                 </p>
               )}
             </div>
@@ -183,6 +188,97 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
         <main className="flex-1 bg-[#0B132B] p-4 md:p-6 overflow-y-auto min-w-0">
           {children}
         </main>
+      </div>
+
+      {/* Mobile Drawer Overlay for MORE Menu */}
+      {mobileMoreOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <MoreHorizontal className="w-5 h-5 text-cyan-400" /> PROXIMA NAVIGATION & CHANNELS
+              </h3>
+              <button
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-1 bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <Link
+                href="/connections"
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-purple-500"
+              >
+                <Share2 className="w-4 h-4 text-purple-400" /> Connections Center
+              </Link>
+              <Link
+                href="/approvals"
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-emerald-500"
+              >
+                <CheckSquare className="w-4 h-4 text-emerald-400" /> Approvals Center
+              </Link>
+              <Link
+                href="/ai-ceo"
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-cyan-500"
+              >
+                <Bot className="w-4 h-4 text-cyan-400" /> AI CEO Commander
+              </Link>
+              <Link
+                href="/development"
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-purple-500"
+              >
+                <Cpu className="w-4 h-4 text-purple-400" /> Development Commander
+              </Link>
+              <Link
+                href="/security-intelligence"
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-emerald-500"
+              >
+                <Lock className="w-4 h-4 text-emerald-400" /> Security Intelligence
+              </Link>
+              <Link
+                href="/settings/email"
+                onClick={() => setMobileMoreOpen(false)}
+                className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 text-slate-200 font-semibold hover:border-orange-500"
+              >
+                <Mail className="w-4 h-4 text-orange-400" /> Titan Email
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fixed Mobile Bottom Navigation Bar (md:hidden) */}
+      <div className="fixed bottom-0 left-0 right-0 h-16 bg-[#1C2541]/95 backdrop-blur border-t border-slate-800 flex items-center justify-around z-40 md:hidden font-mono text-[10px]">
+        {mobileBottomNav.map((item, idx) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={idx}
+              href={item.href}
+              className={`flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 transition-colors ${
+                isActive ? 'text-cyan-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setMobileMoreOpen(true)}
+          className="flex flex-col items-center justify-center gap-1 min-w-[56px] py-1 text-slate-400 hover:text-slate-200 transition-colors"
+        >
+          <MoreHorizontal className="w-5 h-5" />
+          <span>MORE</span>
+        </button>
       </div>
     </div>
   );
