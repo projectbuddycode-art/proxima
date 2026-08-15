@@ -143,7 +143,7 @@ export class LocalJsonDatabase implements DatabaseAdapter {
 
   public async createPairingCodeAsync(): Promise<string> {
     const crypto = require('crypto');
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000;
     this.data['pairing_codes'].push({
       id: `pair_${Date.now()}`,
@@ -178,12 +178,12 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       id: bridgeId,
       bridge_id: bridgeId,
       token_hash: tokenHash,
-      machine_id: 'machine_local',
-      os: 'Windows',
-      arch: 'x64',
-      ollama_version: '0.3.0',
-      models: JSON.stringify(['qwen2.5-coder:7b']),
-      active_model: 'qwen2.5-coder:7b',
+      machine_id: 'UNKNOWN',
+      os: 'UNKNOWN',
+      arch: 'UNKNOWN',
+      ollama_version: 'UNKNOWN',
+      models: '[]',
+      active_model: 'UNKNOWN',
       status: 'CONNECTED',
       last_seen: new Date().toISOString(),
       created_at: new Date().toISOString()
@@ -222,12 +222,12 @@ export class LocalJsonDatabase implements DatabaseAdapter {
         id: bridgeId,
         bridge_id: bridgeId,
         token_hash: tokenHash,
-        machine_id: payload.machine_id || 'machine_local',
-        os: payload.os || 'Windows',
-        arch: payload.arch || 'x64',
-        ollama_version: payload.ollama_version || '0.3.0',
-        models: JSON.stringify(payload.models || ['qwen2.5-coder:7b']),
-        active_model: payload.active_model || 'qwen2.5-coder:7b',
+        machine_id: payload.machine_id || 'UNKNOWN',
+        os: payload.os || 'UNKNOWN',
+        arch: payload.arch || 'UNKNOWN',
+        ollama_version: payload.ollama_version || 'UNKNOWN',
+        models: JSON.stringify(payload.models || []),
+        active_model: payload.active_model || 'UNKNOWN',
         status: 'CONNECTED',
         last_seen: timestamp,
         created_at: timestamp

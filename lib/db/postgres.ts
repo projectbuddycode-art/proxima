@@ -2,6 +2,23 @@ import { DatabaseAdapter, PreparedQuery } from '../db';
 import { Pool } from 'pg';
 import crypto from 'crypto';
 
+// Strict allowlist for table names used in dynamic SQL count queries
+const ALLOWED_TABLES = new Set([
+  'companies',
+  'prospects',
+  'campaigns',
+  'outreach_messages',
+  'responses',
+  'security_observations',
+  'settings',
+  'proxima_activity_logs',
+  'strategy_experiments',
+  'bridge_sessions',
+  'ai_jobs',
+  'pairing_codes',
+  'agents'
+]);
+
 export class PostgresProductionDatabase implements DatabaseAdapter {
   public type: 'POSTGRES' = 'POSTGRES';
   private pool: Pool;
@@ -15,20 +32,27 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
   }
 
   public count(tableName: string, predicate?: (row: any) => boolean): number {
-    return 0;
+    throw new Error('PostgresProductionDatabase does not support synchronous count(). Use countAsync().');
   }
 
   public async countAsync(tableName: string, predicate?: (row: any) => boolean): Promise<number> {
+    const tableKey = tableName.toLowerCase();
+    if (!ALLOWED_TABLES.has(tableKey)) {
+      throw new Error(`Invalid table name '${tableName}' rejected by SQL table allowlist.`);
+    }
+
     try {
-      const res = await this.pool.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+      const res = await this.pool.query(`SELECT COUNT(*) as cnt FROM ${tableKey}`);
       return parseInt(res.rows[0]?.cnt || '0', 10);
-    } catch (err) {
-      return 0;
+    } catch (err: any) {
+      console.error(`PostgreSQL count error on table '${tableKey}':`, err.message);
+      throw err;
     }
   }
 
   public async createPairingCodeAsync(): Promise<string> {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Cryptographically secure 6-digit pairing code generation
+    const code = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000;
     const id = `pair_${Date.now()}`;
 
@@ -74,16 +98,18 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
       const bridgeId = `bridge_${crypto.randomBytes(4).toString('hex')}`;
 
+      // Neutral default machine values set at pairing time (actual details updated during heartbeat)
       await client.query(`
         INSERT INTO bridge_sessions (id, bridge_id, token_hash, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, created_at)
-        VALUES ($1, $2, $3, 'machine_local', 'Windows', 'x64', '0.3.0', $4, 'qwen2.5-coder:7b', 'CONNECTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [bridgeId, bridgeId, tokenHash, JSON.stringify(['qwen2.5-coder:7b'])]);
+        VALUES ($1, $2, $3, 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', '[]', 'UNKNOWN', 'CONNECTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, [bridgeId, bridgeId, tokenHash]);
 
       await client.query('COMMIT');
       return { success: true, token, message: 'Device paired successfully.' };
     } catch (err: any) {
       await client.query('ROLLBACK');
-      return { success: false, message: err.message };
+      console.error('PostgreSQL validatePairingCode error:', err.message);
+      return { success: false, message: 'Pairing code validation failed.' };
     } finally {
       client.release();
     }
@@ -101,12 +127,16 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
     const timestamp = new Date().toISOString();
     const bridgeId = payload.bridge_id || `bridge_${Date.now()}`;
 
+    // Upsert session record on token_hash conflict
     await this.pool.query(`
       INSERT INTO bridge_sessions (id, bridge_id, token_hash, machine_id, os, arch, ollama_version, models, active_model, status, last_seen, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'CONNECTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT (id) DO UPDATE SET
+      ON CONFLICT (token_hash) DO UPDATE SET
         last_seen = CURRENT_TIMESTAMP,
         status = 'CONNECTED',
+        machine_id = EXCLUDED.machine_id,
+        os = EXCLUDED.os,
+        arch = EXCLUDED.arch,
         ollama_version = EXCLUDED.ollama_version,
         models = EXCLUDED.models,
         active_model = EXCLUDED.active_model
@@ -114,12 +144,12 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
       bridgeId,
       bridgeId,
       tokenHash,
-      payload.machine_id || 'machine_local',
-      payload.os || 'Windows',
-      payload.arch || 'x64',
-      payload.ollama_version || '0.3.0',
-      JSON.stringify(payload.models || ['qwen2.5-coder:7b']),
-      payload.active_model || 'qwen2.5-coder:7b'
+      payload.machine_id || 'UNKNOWN',
+      payload.os || 'UNKNOWN',
+      payload.arch || 'UNKNOWN',
+      payload.ollama_version || 'UNKNOWN',
+      JSON.stringify(payload.models || []),
+      payload.active_model || 'UNKNOWN'
     ]);
 
     return { ok: true, timestamp };
@@ -195,8 +225,9 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
         claimed_at: claimedAt,
         payload: typeof job.payload === 'string' ? JSON.parse(job.payload) : job.payload
       };
-    } catch (err) {
+    } catch (err: any) {
       await client.query('ROLLBACK');
+      console.error('PostgreSQL claimNextJob error:', err.message);
       throw err;
     } finally {
       client.release();
@@ -236,8 +267,9 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
 
       await client.query('COMMIT');
       return true;
-    } catch (err) {
+    } catch (err: any) {
       await client.query('ROLLBACK');
+      console.error('PostgreSQL completeJob error:', err.message);
       return false;
     } finally {
       client.release();
@@ -256,14 +288,7 @@ export class PostgresProductionDatabase implements DatabaseAdapter {
   }
 
   public prepare(sql: string): PreparedQuery {
-    return {
-      get: (...params: any[]) => {
-        if (/SELECT\s+COUNT\(\*\)\s+as\s+cnt/i.test(sql)) return { cnt: 0 };
-        return null;
-      },
-      all: (...params: any[]) => [],
-      run: (...params: any[]) => ({ changes: 1, lastInsertRowid: Date.now() })
-    };
+    throw new Error('PostgresProductionDatabase does not support prepare(). All production queries use async adapter methods directly.');
   }
 }
 

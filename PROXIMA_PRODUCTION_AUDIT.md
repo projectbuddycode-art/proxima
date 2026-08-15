@@ -1,34 +1,31 @@
-# PROXIMA Forensic Production Database & Gateway Audit
+# PROXIMA Surgical Production Database Hardening Audit
 
 **Date**: 2026-08-15  
-**Product**: PROXIMA by Project Buddy (v2.0 Production Hardened)  
+**Product**: PROXIMA by Project Buddy (v2.0 Production Release)  
 **Target Repository**: `git@github.com:projectbuddycode-art/proxima.git`  
-**Purpose**: Forensic Code Audit of PostgreSQL Adapter, Gateway API, Atomic Queueing, and Token Security  
+**Scope**: Surgical Hardening of `lib/db/postgres.ts` and `lib/gateway/server.ts`  
 
 ---
 
-## 1. FORENSIC AUDIT MATRIX
+## 1. SURGICAL HARDENING MATRIX
 
-| Subsystem / Operation | Previous State | Forensic Target State |
+| Requirement / Item | Previous Implementation | Hardened Target State |
 | :--- | :--- | :--- |
-| **1. Database Adapter API** | Synchronous SQLite emulation (`prepare().get()`) | **100% Async Database Adapter Interface (`DatabaseAdapter`)**: All methods return `Promise<T>`. Supports both PostgreSQL Pool and Local JSON store. |
-| **2. PostgreSQL Engine (`lib/db/postgres.ts`)** | Stubbed placeholder returns (`0`, `null`, `[]`) | **Real Async PostgreSQL Driver (`pg` Pool)**: Implements transactions (`BEGIN...COMMIT`), `FOR UPDATE SKIP LOCKED`, and `ON CONFLICT (token_hash) DO UPDATE`. |
-| **3. Pairing Code Generation & Validation** | In-memory / Mock validation | **Cryptographic Single-Use Pairing (`pairing_codes` table)**: 6-digit code, 10-min expiry, atomic single-use update (`status = 'USED'`). Rejects duplicate reuse. |
-| **4. Bridge Token Security** | `Math.random()` string | **Cryptographically Secure Tokens**: `crypto.randomBytes(32).toString('hex')`. SHA-256 hash `token_hash` stored in DB. Plaintext returned only once. |
-| **5. Heartbeat & Session Management** | Duplicate inserts on heartbeat | **Upsert Session Management**: `UPDATE` or `INSERT ... ON CONFLICT (token_hash) DO UPDATE`. Last seen > 30s calculated server-side as `OFFLINE`. |
-| **6. Atomic Serverless Job Claiming** | Standard `UPDATE` | **Real PostgreSQL Atomic Lock**: `SELECT ... FOR UPDATE SKIP LOCKED` inside transaction. Atomically transitions `QUEUED` -> `CLAIMED` with `bridge_id` lock. |
-| **7. Job Result Verification & Forged Protection** | Unchecked completion | **Strict Result Verification**: Verifies `token_hash`, `bridge_id`, job existence, job ownership, and status (`CLAIMED`/`RUNNING`). Rejects forged completions (HTTP 403). |
-| **8. Smoke Test Harness** | Manual / Unit tests only | **`scripts/production-smoke-test.mjs`**: Executable test suite verifying 14 core database, pairing, auth, atomic claim, and security gates. |
+| **1. Cryptographic Pairing Code** | `Math.random()` integer | **Cryptographically Secure**: `crypto.randomInt(100000, 1000000).toString()`. |
+| **2. Neutral Pairing Machine Data** | Hardcoded `'Windows'`, `'x64'`, `'0.3.0'` | **Neutral Defaults at Pairing**: Set to `'UNKNOWN'` / `NULL` until actual Local Bridge sends authenticated heartbeat payload. |
+| **3. Session Heartbeat Upsert** | `ON CONFLICT (id)` | **Unique Constraint Upsert**: `ON CONFLICT (token_hash) DO UPDATE` or `ON CONFLICT (bridge_id) DO UPDATE`. |
+| **4. Prepare Stub Removal** | Fake synchronous `prepare()` returning `null` | **Cleaned Production Adapter**: Removed fake `prepare()` stub from `PostgresProductionDatabase`. All production queries use async methods. |
+| **5. Count Method Hardening** | Fake `count()` returning `0` | **Async Table Counter (`countAsync`)**: Validates `tableName` against an explicit table allowlist before executing PostgreSQL queries. |
+| **6. SQL Identifier Safety** | Unchecked table name string | **Strict Table Allowlist**: Restricted to known schema tables (`prospects`, `campaigns`, `bridge_sessions`, etc.). Rejects unlisted table names. |
+| **7. Error Handling** | Swallowed errors | **Explicit Server-Side Error Logging & Propagation**: Throws real errors without swallowing or returning fake fallbacks. Redacts credentials. |
+| **8. Smoke Test & System Tests** | Smoke test & test suite | **Smoke Test Harness**: `scripts/production-smoke-test.mjs` verifies cryptographic pairing code, neutral defaults, upsert heartbeat, and SQL safety. |
 
 ---
 
-## 2. FORENSIC REFACTORING ROADMAP
-1. Update `lib/db.ts` to define async `DatabaseAdapter` interface (`countAsync`, `claimJobAtomicallyAsync`, `validatePairingCodeAsync`, `completeJobAtomicallyAsync`, etc.).
-2. Refactor `lib/db/postgres.ts` to implement real async PostgreSQL operations using `pg` Pool with transactions and `FOR UPDATE SKIP LOCKED`.
-3. Refactor `LocalJsonDatabase` in `lib/db.ts` to implement async adapter methods for local offline development.
-4. Refactor `lib/gateway/server.ts` to call async adapter methods directly with cryptographic token generation (`crypto.randomBytes(32)`).
-5. Update `app/api/gateway/route.ts` to execute async gateway calls and enforce HTTP 401 / HTTP 403 on invalid or forged requests.
-6. Create `scripts/production-smoke-test.mjs` test script covering 14 security & database operational checks.
-7. Update `tests/system.test.ts` to verify async database adapter compliance and 11 end-to-end system tests.
-8. Run `npm test` and `npm run build` to verify 100% clean compilation.
-9. Commit changes and push to `git push origin main`.
+## 2. SURGICAL ROADMAP
+1. Update `lib/db/postgres.ts` to use `crypto.randomInt(100000, 1000000)`, set neutral defaults (`'UNKNOWN'`) during pairing, enforce table allowlist in `countAsync()`, and remove fake `prepare()` / `count()` stubs.
+2. Update `lib/db/schema.sql` to add `UNIQUE (token_hash)` constraint to `bridge_sessions` table.
+3. Update `lib/db.ts` to remove unnecessary synchronous `prepare` on production adapter interface.
+4. Update `scripts/production-smoke-test.mjs` and `tests/system.test.ts` to verify cryptographic pairing codes and neutral defaults.
+5. Run `npx tsx scripts/production-smoke-test.mjs`, `npm test`, and `npm run build`.
+6. Commit changes with `git commit -m "fix: harden production postgres bridge state"` and push to `git push origin main`.

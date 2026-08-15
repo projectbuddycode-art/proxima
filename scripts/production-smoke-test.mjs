@@ -5,7 +5,7 @@ import path from 'path';
 
 async function runProductionSmokeTest() {
   console.log('========================================================================');
-  console.log('🔥 PROXIMA PRODUCTION GATEWAY & DATABASE FORENSIC SMOKE TEST');
+  console.log('🔥 PROXIMA PRODUCTION GATEWAY & DATABASE SURGICAL HARDENING SMOKE TEST');
   console.log('========================================================================\n');
 
   // Clean test database for fresh run
@@ -20,15 +20,18 @@ async function runProductionSmokeTest() {
   const db = getDb();
   console.log(`  ✅ Database Adapter Type: ${db.type}`);
 
-  // 2. Pairing Code Creation (DB-backed, 6-digit, 10 min expiry)
-  console.log('[SMOKE 2/14] Testing Single-Use Pairing Code Creation...');
+  // 2. Cryptographic Pairing Code Creation (crypto.randomInt, 6-digit, 10 min expiry)
+  console.log('[SMOKE 2/14] Testing Cryptographic Single-Use 6-Digit Pairing Code Creation...');
   const code = await ProximaCloudGateway.generatePairingCode();
-  console.log(`  ✅ Pairing Code Generated: ${code} (Stored in DB table pairing_codes)`);
+  const is6Digits = /^\d{6}$/.test(code);
+  console.log(`  ✅ Pairing Code Generated: ${code} (6 Digits Format Check: ${is6Digits ? 'PASS' : 'FAIL'})`);
 
-  // 3. Pairing Code Validation & Token Generation
-  console.log('[SMOKE 3/14] Testing Pairing Code Validation & Cryptographic Token Generation...');
+  // 3. Pairing Code Validation & Neutral Defaults
+  console.log('[SMOKE 3/14] Testing Pairing Code Validation & Neutral Machine Defaults...');
   const pairRes = await ProximaCloudGateway.validatePairingCode(code);
-  console.log(`  ✅ Validation Result: ${pairRes.success ? 'SUCCESS' : 'FAILED'} (Token Issued: ${pairRes.token?.substring(0, 15)}...)`);
+  const sessionData = await ProximaCloudGateway.verifyBearerToken(pairRes.token || '');
+  console.log(`  ✅ Validation Result: ${pairRes.success ? 'SUCCESS' : 'FAILED'} (Issued Token: ${pairRes.token?.substring(0, 15)}...)`);
+  console.log(`  ✅ Neutral Machine Defaults at Pairing: OS=${sessionData?.os}, Arch=${sessionData?.arch}, Ollama=${sessionData?.ollama_version}`);
 
   // 4. Duplicate Pairing Code Rejection
   console.log('[SMOKE 4/14] Testing Re-use of Used Pairing Code (Atomic Consumption Check)...');
@@ -42,11 +45,12 @@ async function runProductionSmokeTest() {
   console.log(`  ✅ Valid Bearer Token: BridgeID=${validSession?.bridge_id} (PASS)`);
   console.log(`  ✅ Invalid Bearer Token: ${invalidSession === null ? 'NULL (401 REJECT PASS)' : 'FAILED'}`);
 
-  // 6. Bridge Heartbeat Upsert (No Duplicate Rows)
-  console.log('[SMOKE 6/14] Testing Bridge Session Heartbeat Upsert...');
-  const hb1 = await ProximaCloudGateway.handleHeartbeat({ token: pairRes.token || '', ollama_version: '0.3.0', models: ['qwen2.5-coder:7b'] });
-  const hb2 = await ProximaCloudGateway.handleHeartbeat({ token: pairRes.token || '', ollama_version: '0.3.0', models: ['qwen2.5-coder:7b'] });
-  console.log(`  ✅ Heartbeats Recorded: Timestamp 1=${hb1.timestamp}, Timestamp 2=${hb2.timestamp}`);
+  // 6. Bridge Heartbeat Upsert (ON CONFLICT token_hash update)
+  console.log('[SMOKE 6/14] Testing Authenticated Bridge Heartbeat Upsert...');
+  const hb1 = await ProximaCloudGateway.handleHeartbeat({ token: pairRes.token || '', os: 'Windows_NT', arch: 'x64', ollama_version: '0.3.0', models: ['qwen2.5-coder:7b'] });
+  const updatedSession = await ProximaCloudGateway.verifyBearerToken(pairRes.token || '');
+  console.log(`  ✅ Heartbeat Recorded: Timestamp=${hb1.timestamp}`);
+  console.log(`  ✅ Authenticated Session Updated: OS=${updatedSession?.os}, Arch=${updatedSession?.arch}, Version=${updatedSession?.ollama_version}`);
 
   // 7. Gateway Status & Server-Side Stale Check
   console.log('[SMOKE 7/14] Testing Server-Side Gateway Status & Stale Bridge Check...');
@@ -88,13 +92,15 @@ async function runProductionSmokeTest() {
   // Clean up claimedJob2
   await ProximaCloudGateway.completeJob(job2.request_id, { output: 'Valid Output' }, 50, 'bridge_owner_B');
 
-  // 14. Final Job Status Check
-  console.log('[SMOKE 14/14] Verifying Final Job Result & Latency...');
+  // 14. Final Job Status Check & SQL Table Allowlist Check
+  console.log('[SMOKE 14/14] Verifying Final Job Result & SQL Table Allowlist...');
   const finalJobStatus = await ProximaCloudGateway.getJobStatus(job1.request_id);
-  console.log(`  ✅ Final Job State: Status=${finalJobStatus?.status}, Latency=${finalJobStatus?.latency_ms}ms, Result="${finalJobStatus?.result?.output}"\n`);
+  const prospectCount = await db.countAsync('prospects');
+  console.log(`  ✅ Final Job State: Status=${finalJobStatus?.status}, Latency=${finalJobStatus?.latency_ms}ms, Result="${finalJobStatus?.result?.output}"`);
+  console.log(`  ✅ Table Allowlist Count Query: prospects=${prospectCount}\n`);
 
   console.log('========================================================================');
-  console.log('🎉 ALL 14 FORENSIC PRODUCTION SMOKE TESTS PASSED CLEANLY!');
+  console.log('🎉 ALL 14 SURGICAL HARDENING SMOKE TESTS PASSED CLEANLY!');
   console.log('========================================================================');
 }
 

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
 CREATE TABLE IF NOT EXISTS bridge_sessions (
   id VARCHAR(255) PRIMARY KEY,
   bridge_id VARCHAR(255) NOT NULL,
-  token_hash VARCHAR(255) NOT NULL,
+  token_hash VARCHAR(255) UNIQUE NOT NULL,
   machine_id VARCHAR(255),
   os VARCHAR(50),
   arch VARCHAR(50),
@@ -123,6 +123,19 @@ CREATE TABLE IF NOT EXISTS strategy_experiments (
   name VARCHAR(255) NOT NULL,
   hypothesis TEXT,
   status VARCHAR(50) DEFAULT 'ACTIVE',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agents (
+  id VARCHAR(255) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  role VARCHAR(255) NOT NULL,
+  goal TEXT,
+  status VARCHAR(50) DEFAULT 'IDLE',
+  tasks_completed INTEGER DEFAULT 0,
+  tasks_rejected INTEGER DEFAULT 0,
+  success_rate INTEGER DEFAULT 100,
+  confidence_avg INTEGER DEFAULT 85,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
