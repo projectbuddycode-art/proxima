@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getPostgresDb } from './db/postgres';
 
 /**
  * PROXIMA UNIVERSAL ASYNC DATABASE ADAPTER ARCHITECTURE
@@ -469,7 +470,6 @@ export function initDb(): DatabaseAdapter {
   if (!dbInstance) {
     const dbUrl = process.env.DATABASE_URL;
     if (dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))) {
-      const { getPostgresDb } = require('./db/postgres');
       dbInstance = getPostgresDb(dbUrl);
     } else {
       const dbPath = path.join(process.cwd(), 'db.json');
