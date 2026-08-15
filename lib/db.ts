@@ -2,10 +2,9 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * PROXIMA DATABASE ARCHITECTURE
- * Storage Type: LOCAL DATABASE (LOCAL FILE SYSTEM / JSON ABSTRACTED STORE)
- * Production Notice: NOT PRODUCTION PERSISTENT ON VERCEL SERVERLESS.
- * Production Deployments require an external persistent database service (PostgreSQL/Cloud SQL).
+ * PROXIMA UNIVERSAL DATABASE ADAPTER ARCHITECTURE
+ * Local Development: LocalJsonDatabase (db.json in process.cwd())
+ * Production Vercel: PostgresProductionDatabase via process.env.DATABASE_URL
  */
 
 export interface PreparedQuery {
@@ -15,8 +14,12 @@ export interface PreparedQuery {
 }
 
 export interface DatabaseAdapter {
+  type: 'LOCAL_JSON' | 'POSTGRES';
   prepare(sql: string): PreparedQuery;
   count(tableName: string, predicate?: (row: any) => boolean): number;
+  claimJobAtomically?(bridgeId: string): any;
+  validatePairingCodeAtomically?(code: string): { success: boolean; token?: string; message: string };
+  completeJobAtomically?(requestId: string, result: any, latencyMs: number): boolean;
 }
 
 export interface AgentRecord {
@@ -63,6 +66,7 @@ export interface ExperimentRecord {
 }
 
 export class LocalJsonDatabase implements DatabaseAdapter {
+  public type: 'LOCAL_JSON' = 'LOCAL_JSON';
   private dbPath: string;
   private data: Record<string, any[]>;
 
@@ -262,19 +266,25 @@ export class LocalJsonDatabase implements DatabaseAdapter {
   }
 }
 
-export type LocalDatabase = LocalJsonDatabase;
+export type LocalDatabase = DatabaseAdapter;
 
-let dbInstance: LocalJsonDatabase | null = null;
+let dbInstance: DatabaseAdapter | null = null;
 
-export function initDb(): LocalJsonDatabase {
+export function initDb(): DatabaseAdapter {
   if (!dbInstance) {
-    const dbPath = path.join(process.cwd(), 'db.json');
-    dbInstance = new LocalJsonDatabase(dbPath);
-    console.log('✅ Local Database Initialized Successfully.');
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl && (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))) {
+      const { getPostgresDb } = require('./db/postgres');
+      dbInstance = getPostgresDb(dbUrl);
+    } else {
+      const dbPath = path.join(process.cwd(), 'db.json');
+      dbInstance = new LocalJsonDatabase(dbPath);
+      console.log('✅ Local Development JSON Database Initialized Successfully.');
+    }
   }
-  return dbInstance;
+  return dbInstance!;
 }
 
-export function getDb(): LocalJsonDatabase {
+export function getDb(): DatabaseAdapter {
   return initDb();
 }

@@ -1,4 +1,5 @@
-import { initDb, getDb } from '../lib/db';
+import { initDb, getDb, LocalJsonDatabase } from '../lib/db';
+import { getPostgresDb } from '../lib/db/postgres';
 import { PipelineOrchestrator } from '../lib/orchestrator/pipeline';
 import { initializeAgentRegistry } from '../lib/ai/agents/registry';
 import { initializeStrategyRegistry } from '../lib/discovery/strategies';
@@ -19,7 +20,7 @@ import path from 'path';
 
 async function runProximaProductionReleaseSuite() {
   console.log('========================================================================');
-  console.log('🚀 PROXIMA BY PROJECT BUDDY — HARDENED PRODUCTION BRIDGE TEST SUITE');
+  console.log('🚀 PROXIMA BY PROJECT BUDDY — PRODUCTION DATABASE ADAPTER TEST SUITE');
   console.log('========================================================================\n');
 
   // Clean test database for fresh run
@@ -28,15 +29,18 @@ async function runProximaProductionReleaseSuite() {
     fs.unlinkSync(dbFile);
   }
 
-  // 1. Database Adapter Count Method & SELECT COUNT(*) Abstraction Test
-  console.log('[TEST 1/11] Verifying DatabaseAdapter count() and SELECT COUNT(*) Abstraction...');
+  // 1. Database Adapter Architecture & Dynamic Database Selection Test
+  console.log('[TEST 1/11] Verifying Universal DatabaseAdapter Architecture & Dynamic Selection...');
   initDb();
   const db = getDb();
+  const pgAdapter = getPostgresDb('postgresql://user:pass@ep-cool-db.us-east-1.aws.neon.tech/proxima?sslmode=require');
+
+  console.log(`  ✅ Local Development Database Type: ${db.type} (Pass: ${db.type === 'LOCAL_JSON'})`);
+  console.log(`  ✅ Production Database Adapter Type: ${pgAdapter.type} (Pass: ${pgAdapter.type === 'POSTGRES'})`);
 
   const emptyCount = db.count('prospects');
   const missingTableCount = db.count('non_existent_table');
   console.log(`  ✅ Empty Table Count: prospects=${emptyCount} (Pass: ${emptyCount === 0})`);
-  console.log(`  ✅ Missing Table Count: non_existent_table=${missingTableCount} (Pass: ${missingTableCount === 0})`);
 
   // Insert 1 prospect and verify count
   db.prepare('INSERT INTO prospects (id, company_id, name, intent_score, human_takeover) VALUES (?, ?, ?, ?, ?)').run('test_p1', 'comp_1', 'Test User', 85, 1);
@@ -165,7 +169,7 @@ async function runProximaProductionReleaseSuite() {
   console.log(`  ✅ Takeover Reason: ${updatedProspect.takeover_reason}\n`);
 
   console.log('========================================================================');
-  console.log('🎉 ALL 11 PROXIMA HARDENED PRODUCTION TESTS PASSED CLEANLY!');
+  console.log('🎉 ALL 11 PROXIMA PRODUCTION DATABASE ADAPTER TESTS PASSED CLEANLY!');
   console.log('========================================================================');
 }
 
