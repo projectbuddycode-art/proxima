@@ -117,11 +117,22 @@ export default function LocalAIEngine() {
   };
 
   const handleVerifyPairing = async () => {
-    setPairingStatus('Verifying pairing code...');
-    setTimeout(() => {
+    const targetCode = inputCode.trim() || pairingCode.trim();
+    if (!targetCode) {
+      setPairingStatus('⚠️ Please enter the 6-digit pairing code.');
+      return;
+    }
+    setPairingStatus('Verifying pairing code with Local Bridge & Cloud Gateway...');
+    const result = await ProximaBridgeClient.pairDevice(targetCode);
+    if (result.success) {
       setPairingStatus('✅ Device Paired Successfully!');
-      setTimeout(() => setShowPairingModal(false), 1200);
-    }, 800);
+      setTimeout(() => {
+        setShowPairingModal(false);
+        fetchHealth();
+      }, 1200);
+    } else {
+      setPairingStatus(`❌ Pairing Failed: ${result.message}`);
+    }
   };
 
   return (

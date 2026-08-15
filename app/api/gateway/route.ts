@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { ProximaCloudGateway } from '@/lib/gateway/server';
+import { initDb } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const action = searchParams.get('action');
-  const reqId = searchParams.get('request_id') || searchParams.get('job_id');
+  try {
+    initDb();
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+    const reqId = searchParams.get('request_id') || searchParams.get('job_id');
 
-  if (action === 'pairing_code') {
-    const code = await ProximaCloudGateway.generatePairingCode();
-    return NextResponse.json({ code, expires_in: '10 minutes' });
-  }
+    if (action === 'pairing_code') {
+      const code = await ProximaCloudGateway.generatePairingCode();
+      return NextResponse.json({ code, expires_in: '10 minutes' });
+    }
 
   if (action === 'poll') {
     const authHeader = request.headers.get('authorization') || '';
@@ -30,10 +35,14 @@ export async function GET(request: Request) {
 
   const status = await ProximaCloudGateway.getStatus();
   return NextResponse.json(status);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
   try {
+    initDb();
     const body = await request.json();
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');

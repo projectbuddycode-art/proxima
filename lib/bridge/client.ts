@@ -86,4 +86,26 @@ export class ProximaBridgeClient {
     } catch (err) {}
     return '123456';
   }
+
+  /**
+   * Validates pairing code with Local Bridge and exchanges it with Cloud Gateway for Bearer token
+   */
+  static async pairDevice(code: string, gatewayUrl?: string): Promise<{ success: boolean; message: string; bridge_id?: string }> {
+    const gwUrl = gatewayUrl || (typeof window !== 'undefined' ? `${window.location.origin}/api/gateway` : '/api/gateway');
+    try {
+      const res = await fetch(`${this.bridgeUrl}/api/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, gateway_url: gwUrl })
+      });
+      if (res.ok) {
+        return await res.json();
+      } else {
+        const errData = await res.json();
+        return { success: false, message: errData.error || errData.message || 'Pairing failed.' };
+      }
+    } catch (err: any) {
+      return { success: false, message: 'Local Bridge is offline on port 11435. Please start local bridge first.' };
+    }
+  }
 }

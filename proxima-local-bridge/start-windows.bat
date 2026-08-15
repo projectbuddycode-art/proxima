@@ -3,6 +3,8 @@ echo ====================================================
 echo 🚀 STARTING PROXIMA LOCAL AI BRIDGE (WINDOWS)
 echo ====================================================
 
+cd /d "%~dp0"
+
 echo Checking Ollama local status on http://127.0.0.1:11434 ...
 curl -s http://127.0.0.1:11434/api/tags >nul 2>&1
 if %errorlevel% neq 0 (

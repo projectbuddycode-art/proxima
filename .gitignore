@@ -18,6 +18,7 @@
 /db.json
 /proxima-logs/
 /scratch/
+/proxima-local-bridge/bridge-config.json
 *.log
 
 # Large Datasets & OpenStreetMap PBF files

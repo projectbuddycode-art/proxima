@@ -3,12 +3,80 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
+import { fileURLToPath } from 'url';
 
-const PORT = process.env.BRIDGE_PORT || 11435;
-const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-const CLOUD_GATEWAY_URL = process.env.CLOUD_GATEWAY_URL;
-const BRIDGE_TOKEN = process.env.PROXIMA_BRIDGE_TOKEN;
-const ALLOWED_ORIGIN = process.env.PROXIMA_ALLOWED_ORIGIN || 'http://localhost:3000';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper function to parse and load .env files into process.env relative to index.mjs
+function loadEnvFile(envPath) {
+  try {
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8');
+      for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx > 0) {
+          const key = trimmed.substring(0, eqIdx).trim();
+          let val = trimmed.substring(eqIdx + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.substring(1, val.length - 1);
+          }
+          if (val && (!process.env[key] || process.env[key] === '')) {
+            process.env[key] = val;
+          }
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+// Load .env relative to script directory first, then parent project root
+loadEnvFile(path.join(__dirname, '.env'));
+loadEnvFile(path.join(__dirname, '..', '.env'));
+
+function getEnvVar(key, fallback = undefined) {
+  const val = process.env[key];
+  if (!val) return fallback;
+  const lower = val.trim().toLowerCase();
+  if (lower === 'your-paired-device-token-here' || lower === 'prx_bridge_token_example' || lower === 'https://your-proxima-domain/api/gateway') {
+    return fallback;
+  }
+  return val.trim();
+}
+
+let PORT = parseInt(process.env.BRIDGE_PORT || '11435', 10);
+let OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+let CLOUD_GATEWAY_URL = getEnvVar('CLOUD_GATEWAY_URL');
+let BRIDGE_TOKEN = getEnvVar('PROXIMA_BRIDGE_TOKEN');
+let ALLOWED_ORIGIN = process.env.PROXIMA_ALLOWED_ORIGIN || 'http://localhost:3000';
+
+function updateLocalEnvFile(updates) {
+  const envPath = path.join(__dirname, '.env');
+  let lines = [];
+  if (fs.existsSync(envPath)) {
+    lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+  }
+  
+  for (const [key, value] of Object.entries(updates)) {
+    process.env[key] = value;
+    let keyFound = false;
+    lines = lines.map(line => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith(`${key}=`)) {
+        keyFound = true;
+        return `${key}=${value}`;
+      }
+      return line;
+    });
+    if (!keyFound) {
+      lines.push(`${key}=${value}`);
+    }
+  }
+  
+  fs.writeFileSync(envPath, lines.join('\n'), 'utf-8');
+}
 
 // Local Command Allowlist for security protection (Generic execution commands REJECTED)
 const ALLOWED_COMMANDS = new Set([
@@ -18,11 +86,12 @@ const ALLOWED_COMMANDS = new Set([
   'ollama_models',
   'ollama_generate',
   'ollama_pull_model',
-  'health'
+  'health',
+  'pair'
 ]);
 
-// Persist / Load Dynamic Unique Bridge ID
-const configPath = path.join(process.cwd(), 'proxima-local-bridge', 'bridge-config.json');
+// Persist / Load Dynamic Unique Bridge ID relative to script location
+const configPath = path.join(__dirname, 'bridge-config.json');
 let bridgeId = `bridge_${Math.random().toString(36).substring(2, 9)}`;
 
 try {
@@ -31,8 +100,6 @@ try {
     const parsed = JSON.parse(raw);
     if (parsed.bridge_id) bridgeId = parsed.bridge_id;
   } else {
-    const dir = path.dirname(configPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(configPath, JSON.stringify({ bridge_id: bridgeId }, null, 2), 'utf-8');
   }
 } catch (e) {
@@ -46,13 +113,13 @@ console.log(`  Bridge Port: ${PORT}`);
 console.log(`  Ollama Target: ${OLLAMA_BASE_URL}`);
 
 if (!CLOUD_GATEWAY_URL) {
-  console.log('❌ CLOUD GATEWAY NOT CONFIGURED. Set CLOUD_GATEWAY_URL in environment.');
+  console.log('❌ CLOUD GATEWAY NOT CONFIGURED. Set CLOUD_GATEWAY_URL in environment or pair device.');
 } else {
   console.log(`  Cloud Gateway: ${CLOUD_GATEWAY_URL}`);
 }
 
 if (!BRIDGE_TOKEN) {
-  console.log('❌ BRIDGE AUTHENTICATION NOT CONFIGURED. Set PROXIMA_BRIDGE_TOKEN in environment.');
+  console.log('❌ BRIDGE AUTHENTICATION NOT CONFIGURED. Set PROXIMA_BRIDGE_TOKEN in environment or pair device.');
 } else {
   console.log('  Bridge Token: Authenticated');
 }
@@ -168,14 +235,21 @@ async function pollGatewayJobs() {
   } catch (err) {}
 }
 
-// Start persistent 15-second heartbeat & 2-second job poller
-if (CLOUD_GATEWAY_URL && BRIDGE_TOKEN) {
+let gatewayIntervalsStarted = false;
+function startGatewayLoop() {
+  if (gatewayIntervalsStarted || !CLOUD_GATEWAY_URL || !BRIDGE_TOKEN) return;
+  gatewayIntervalsStarted = true;
   setInterval(sendOutboundHeartbeat, 15000);
   setInterval(pollGatewayJobs, 2000);
   sendOutboundHeartbeat();
 }
 
-// Local HTTP listener for local UI control calls
+// Start persistent 15-second heartbeat & 2-second job poller if credentials present
+if (CLOUD_GATEWAY_URL && BRIDGE_TOKEN) {
+  startGatewayLoop();
+}
+
+// Local HTTP listener for local UI control & pairing calls
 const server = http.createServer(async (req, res) => {
   // CORS origin restriction using PROXIMA_ALLOWED_ORIGIN
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
@@ -193,23 +267,92 @@ const server = http.createServer(async (req, res) => {
     const status = await checkOllamaStatus();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      status: status.reachable ? 'CONNECTED' : 'OFFLINE',
+      status: status.reachable && CLOUD_GATEWAY_URL && BRIDGE_TOKEN ? 'CONNECTED' : (status.reachable ? 'DEGRADED' : 'OFFLINE'),
       bridge: 'ONLINE',
       ollama: status.reachable ? 'REACHABLE' : 'UNREACHABLE',
       version: status.version,
       models: status.models,
       activeModel: status.models.length > 0 ? status.models[0] : 'qwen2.5-coder:3b',
       bridge_id: bridgeId,
+      gateway_configured: !!CLOUD_GATEWAY_URL,
+      auth_configured: !!BRIDGE_TOKEN,
       timestamp: new Date().toISOString()
     }));
     return;
   }
 
-  // Start Local Ollama OS Action: POST /api/command
+  // Device Pairing Endpoint: POST /api/pair
+  if (req.method === 'POST' && req.url === '/api/pair') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(bodyStr || '{}');
+        const code = payload.code;
+        const targetGateway = payload.gateway_url || CLOUD_GATEWAY_URL || 'https://proxima-lovat.vercel.app/api/gateway';
+
+        if (!code) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Pairing code is required.' }));
+          return;
+        }
+
+        console.log(`[PROXIMA LOCAL BRIDGE] Validating 6-digit pairing code '${code}' with Cloud Gateway at ${targetGateway}...`);
+
+        const pairRes = await fetch(`${targetGateway}?action=pair`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+
+        if (pairRes.ok) {
+          const pData = await pairRes.json();
+          if (pData.success && pData.token) {
+            CLOUD_GATEWAY_URL = targetGateway;
+            BRIDGE_TOKEN = pData.token;
+
+            updateLocalEnvFile({
+              CLOUD_GATEWAY_URL: targetGateway,
+              PROXIMA_BRIDGE_TOKEN: pData.token
+            });
+
+            console.log('✅ DEVICE PAIRED SUCCESSFULLY!');
+            console.log(`  Cloud Gateway: ${CLOUD_GATEWAY_URL}`);
+            console.log('  Bearer Token: Cryptographically secure token saved to proxima-local-bridge/.env');
+
+            startGatewayLoop();
+            await sendOutboundHeartbeat();
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Device paired successfully. Bearer token saved to proxima-local-bridge/.env.',
+              bridge_id: bridgeId
+            }));
+            return;
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: pData.message || 'Invalid or expired pairing code.' }));
+            return;
+          }
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: `Cloud Gateway returned error ${pairRes.status}` }));
+          return;
+        }
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message || 'Internal bridge pairing error.' }));
+      }
+    });
+    return;
+  }
+
+  // Safe OS Command execution endpoint: POST /api/command
   if (req.method === 'POST' && req.url === '/api/command') {
     let bodyStr = '';
     req.on('data', chunk => { bodyStr += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const payload = JSON.parse(bodyStr || '{}');
         const cmd = payload.command;

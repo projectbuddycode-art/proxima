@@ -3,6 +3,8 @@ echo "===================================================="
 echo "🚀 STARTING PROXIMA LOCAL AI BRIDGE (UNIX/MACOS)"
 echo "===================================================="
 
+cd "$(dirname "$0")"
+
 if ! curl -s http://127.0.0.1:11434/api/tags > /dev/null; then
     echo "Ollama local engine is not running. Starting Ollama serve..."
     ollama serve &
