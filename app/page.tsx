@@ -19,6 +19,8 @@ import {
   Globe
 } from 'lucide-react';
 
+import { RealProspectFirewall } from '@/lib/verification/firewall';
+
 export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -28,7 +30,8 @@ export default function DashboardHome() {
   const [offer, setOffer] = useState('Premium Digital Lighting Showroom');
   const [executing, setExecuting] = useState(false);
 
-  // Response simulation modal state
+  // Response simulation modal state (Development/Testing only)
+  const isSimulationAllowed = process.env.NEXT_PUBLIC_ALLOW_SIMULATION === 'true';
   const [showSimulateModal, setShowSimulateModal] = useState(false);
   const [simProspectId, setSimProspectId] = useState('');
   const [simText, setSimText] = useState(
@@ -39,17 +42,10 @@ export default function DashboardHome() {
   const fetchDashboard = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/setup');
-      const setupData = await res.json();
-
-      const prospRes = await fetch('/api/prospects');
-      const prospData = await prospRes.json();
-
-      const reportRes = await fetch('/api/reports/daily');
-      const reportData = await reportRes.json();
-
-      const campRes = await fetch('/api/campaigns');
-      const campData = await campRes.json();
+      const setupData = await (await fetch('/api/setup')).json();
+      const prospData = await (await fetch('/api/prospects')).json();
+      const reportData = await (await fetch('/api/reports/daily')).json();
+      const campData = await (await fetch('/api/campaigns')).json();
 
       setData({
         setup: setupData,
@@ -91,7 +87,7 @@ export default function DashboardHome() {
   };
 
   const handleSimulateResponse = async () => {
-    if (!simProspectId) return;
+    if (!simProspectId || !isSimulationAllowed) return;
     setSimulating(true);
     try {
       const res = await fetch('/api/responses', {
@@ -99,7 +95,8 @@ export default function DashboardHome() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prospectId: simProspectId,
-          rawMessage: simText
+          rawMessage: simText,
+          isSimulation: true
         })
       });
       const resData = await res.json();
@@ -124,9 +121,11 @@ export default function DashboardHome() {
     );
   }
 
-  const prospects = data?.prospects || [];
+  const rawProspects = data?.prospects || [];
+  const prospects = rawProspects.filter((p: any) => RealProspectFirewall.validateRealProspect(p));
   const takeoverProspects = prospects.filter((p: any) => p.human_takeover === 1);
   const highIntentProspects = prospects.filter((p: any) => p.intent_score >= 70);
+  const logs = data?.setup?.logs || [];
 
   return (
     <div className="space-y-6">
@@ -256,14 +255,14 @@ export default function DashboardHome() {
                         )}
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        {prosp.contact_name} ({prosp.role || 'Contact'}) • {prosp.industry} • {prosp.location}
+                        {prosp.contact_name || 'Verified Contact'} ({prosp.role || 'Contact'}) • {prosp.industry || 'Industry'} • {prosp.location || 'Location'}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <div className="text-right font-mono text-xs">
-                        <span className="font-bold text-orange-400">Intent: {prosp.intent_score}/100</span>
-                        <div className="text-[10px] text-slate-400">Fit: {prosp.fit_score}/100</div>
+                        <span className="font-bold text-orange-400">Intent: {prosp.intent_score || 0}/100</span>
+                        <div className="text-[10px] text-slate-400">Fit: {prosp.fit_score || 0}/100</div>
                       </div>
 
                       <Link
@@ -273,16 +272,18 @@ export default function DashboardHome() {
                         <Eye className="w-3.5 h-3.5" /> WHY THIS LEAD?
                       </Link>
 
-                      <button
-                        onClick={() => {
-                          setSimProspectId(prosp.id);
-                          setShowSimulateModal(true);
-                        }}
-                        title="Simulate incoming prospect response"
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg flex items-center gap-1"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" /> Simulate Reply
-                      </button>
+                      {isSimulationAllowed && (
+                        <button
+                          onClick={() => {
+                            setSimProspectId(prosp.id);
+                            setShowSimulateModal(true);
+                          }}
+                          title="Simulate incoming prospect response"
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-semibold text-xs rounded-lg flex items-center gap-1"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" /> Simulate Reply
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -299,17 +300,22 @@ export default function DashboardHome() {
               <Activity className="w-4 h-4 text-cyan-400" /> PROXIMA Activity Stream
             </h3>
 
-            <div className="space-y-2 text-xs font-mono">
-              <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-                <span className="text-slate-500">04:12</span> <strong className="text-cyan-400">MAP DISCOVERY:</strong> OpenStreetMap extract scanned.
+            {logs.length === 0 ? (
+              <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 text-xs font-mono text-slate-500">
+                No recent activity logged. Real operations stream live during active discovery.
               </div>
-              <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-                <span className="text-slate-500">04:14</span> <strong className="text-emerald-400">VERIFICATION:</strong> 5-Level Contact provenance passed.
+            ) : (
+              <div className="space-y-2 text-xs font-mono">
+                {logs.slice(-5).reverse().map((log: any, idx: number) => (
+                  <div key={log.id || idx} className="p-2 bg-slate-950 rounded-lg border border-slate-800">
+                    <span className="text-slate-500">
+                      {log.created_at ? new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'LOG'}
+                    </span>{' '}
+                    <strong className="text-cyan-400">{log.stage}:</strong> {log.message}
+                  </div>
+                ))}
               </div>
-              <div className="p-2 bg-slate-950 rounded-lg border border-slate-800">
-                <span className="text-slate-500">04:19</span> <strong className="text-orange-400">SECURITY SCOUT:</strong> Passive HTTPS observation recorded.
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -380,8 +386,8 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* SIMULATE RESPONSE MODAL */}
-      {showSimulateModal && (
+      {/* SIMULATE RESPONSE MODAL (Testing only) */}
+      {isSimulationAllowed && showSimulateModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">

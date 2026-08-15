@@ -21,6 +21,7 @@ import { initializeAgentRegistry } from '../ai/agents/registry';
 import { initializeStrategyRegistry } from '../discovery/strategies';
 import { ContactVerificationEngine } from '../verification/contacts';
 import { SecurityIntelligenceAgent } from '../ai/agents/security';
+import { RealProspectFirewall } from '../verification/firewall';
 
 export class PipelineOrchestrator {
   /**
@@ -54,6 +55,11 @@ export class PipelineOrchestrator {
     ]);
 
     for (const raw of rawProspects) {
+      if (!RealProspectFirewall.validateRealProspect(raw)) {
+        console.warn(`[FIREWALL REJECT] Synthetic/invalid prospect rejected: ${raw.company_name}`);
+        continue;
+      }
+
       // 2. Real Company Identity & Contact Provenance Verification Gate
       const verifiedContact = ContactVerificationEngine.verifyContact(
         'email',

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import { RealProspectFirewall } from '@/lib/verification/firewall';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
       WHERE p.id = ?
     `, [id]);
 
-    if (!prospect) {
+    if (!prospect || !RealProspectFirewall.validateRealProspect(prospect)) {
       return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
     }
 
@@ -52,6 +53,8 @@ export async function GET(req: Request) {
 
   query += ` ORDER BY p.intent_score DESC, p.created_at DESC`;
 
-  const prospects = await db.queryAllAsync(query);
+  const rawProspects = await db.queryAllAsync(query);
+  const prospects = rawProspects.filter(p => RealProspectFirewall.validateRealProspect(p));
+
   return NextResponse.json({ prospects });
 }

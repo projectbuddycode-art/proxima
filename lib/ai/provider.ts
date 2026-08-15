@@ -191,34 +191,32 @@ export class MockProvider implements AIProvider {
 
     // 7. Research Agent (Default structured output for Research or general queries)
     return {
-      company_name: 'Bangalore Premium Lighting Co.',
-      website: 'https://example-lighting.com',
+      company_name: 'Architectural Lighting Systems',
+      website: 'https://architectural-lighting.org',
       industry: 'Lighting Showroom & Manufacturer',
       location: 'Bangalore, Karnataka, India',
-      company_summary: 'Leading manufacturer and retailer of architectural and decorative lighting systems.',
-      decision_makers: [{ name: 'Rajesh Kumar', role: 'Founder & Managing Director', email: 'rajesh@example-lighting.com' }],
+      company_summary: 'Manufacturer and retailer of architectural and decorative lighting systems.',
+      decision_makers: [{ name: 'Managing Director', role: 'Founder & Managing Director', email: undefined }],
       products_services: ['Architectural Lighting', 'Luxury Chandeliers', 'Commercial LED Systems'],
       target_customers: ['Architects', 'Interior Designers', 'Commercial Developers', 'Luxury Homeowners'],
       business_model: 'B2B & B2C High-Margin Lighting Showroom',
       observable_website_findings: [
-        'Large 200+ product catalogue presented as static 45MB downloadable PDF.',
-        'Generic contact form without product-specific RFQ or WhatsApp quick enquiry flow.',
-        'Product pages lack structured technical specification filters.'
+        'Large product catalogue presented as static downloadable PDF.',
+        'Generic contact form without product-specific RFQ or WhatsApp quick enquiry flow.'
       ],
-      social_signals: ['Announced opening of new 5,000 sq ft showroom in Indiranagar Bangalore on LinkedIn.'],
-      hiring_signals: ['Hiring 2 Business Development Executives and 1 Sales Coordinator.'],
-      expansion_signals: ['Opened new showroom location; expanding commercial lighting division.'],
-      review_signals: ['Google reviews mention delays in getting custom quotations (3-4 day turnaround).'],
-      buying_signals: ['Expanding sales team while experiencing manual quoting delays on WhatsApp.'],
+      social_signals: ['Opened new showroom location.'],
+      hiring_signals: ['Hiring Business Development Executives.'],
+      expansion_signals: ['Expanding commercial lighting division.'],
+      review_signals: ['Google reviews mention delays in getting custom quotations.'],
+      buying_signals: ['Expanding sales team while experiencing manual quoting delays.'],
       pain_hypotheses: [
-        'High lead drop-off due to manual 45MB PDF catalogue navigation.',
-        'Sales coordinators spend 15+ hours weekly answering repetitive WhatsApp catalogue pricing questions.',
-        'Slow RFQ turnaround (3+ days) loses architectural projects to faster competitors.'
+        'High lead drop-off due to manual PDF catalogue navigation.',
+        'Slow RFQ turnaround loses architectural projects to competitors.'
       ],
       commercial_opportunities: ['Implement Digital Lighting Showroom with WhatsApp RFQ qualification.'],
       recommended_project_buddy_capability: 'Digital Product Catalogue & RFQ Qualification System',
       recommended_offer: 'Premium Digital Lighting Showroom',
-      reason_to_contact_now: 'Expanding showroom team while suffering from 3-day quotation turnaround friction.',
+      reason_to_contact_now: 'Expanding showroom team while suffering from quotation turnaround friction.',
       confidence: 0.88
     } as unknown as T;
   }

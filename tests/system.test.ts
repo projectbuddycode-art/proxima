@@ -172,8 +172,22 @@ async function runProximaProductionReleaseSuite() {
   console.log('========================================================================');
   console.log('🎉 ALL 11 PROXIMA MASTER FORENSIC TESTS PASSED CLEANLY!');
   console.log('========================================================================');
+
+  // CLEANUP TEARDOWN: Ensure test fixtures never contaminate persistent database
+  try {
+    await db.executeAsync('DELETE FROM responses WHERE prospect_id IN (SELECT id FROM prospects WHERE company_id = ?)', [testCompId]);
+    await db.executeAsync('DELETE FROM messages WHERE prospect_id IN (SELECT id FROM prospects WHERE company_id = ?)', [testCompId]);
+    await db.executeAsync('DELETE FROM opportunities WHERE prospect_id IN (SELECT id FROM prospects WHERE company_id = ?)', [testCompId]);
+    await db.executeAsync('DELETE FROM prospects WHERE company_id = ? OR id = ?', [testCompId, testProspId]);
+    await db.executeAsync('DELETE FROM companies WHERE id = ?', [testCompId]);
+    if (campaignId) await db.executeAsync('DELETE FROM campaigns WHERE id = ?', [campaignId]);
+    console.log('🧹 Test teardown complete. Persistent DB left 100% clean.\n');
+  } catch (err) {
+    // Teardown log
+  }
 }
 
+process.env.TEST_MODE = 'true';
 runProximaProductionReleaseSuite().catch(err => {
   console.error('❌ Test suite error:', err);
   process.exit(1);

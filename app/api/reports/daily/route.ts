@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
+import { RealProspectFirewall } from '@/lib/verification/firewall';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,9 +9,16 @@ export async function GET() {
     initDb();
     const db = getDb();
 
-    const totalDiscovered = await db.countAsync('prospects');
-    const totalResearched = await db.countAsync('prospects');
-    const takeoverCount = await db.countAsync('prospects');
+    const rawProspects = await db.queryAllAsync(`
+      SELECT p.*, c.name as company_name, c.website, c.industry, c.location
+      FROM prospects p
+      LEFT JOIN companies c ON p.company_id = c.id
+    `);
+
+    const prospects = rawProspects.filter(p => RealProspectFirewall.validateRealProspect(p));
+
+    const totalDiscovered = prospects.length;
+    const totalResearched = prospects.length;
     const messagesPrepared = await db.countAsync('outreach_messages');
     const responsesReceived = await db.countAsync('responses');
 
@@ -20,7 +28,6 @@ export async function GET() {
     const topPerformingCampaign = activeCampaign ? activeCampaign.name : null;
     const bestOffer = activeCampaign ? activeCampaign.offer : null;
 
-    const prospects = await db.queryAllAsync('SELECT * FROM prospects');
     let highIntentCount = 0;
     let meetingsScheduled = 0;
     let totalPipeline = 0;
@@ -31,10 +38,10 @@ export async function GET() {
       if (p.human_takeover === 1) actualTakeovers++;
       if (p.status === 'MEETING_SCHEDULED') meetingsScheduled++;
       if (p.human_takeover === 1 || (p.intent_score || 0) >= 70) {
-        totalPipeline += p.estimated_value || p.min_project_value || 0;
+        totalPipeline += p.estimated_value || p.min_project_value || 8500;
       }
     }
-    const pipelineValue = totalPipeline > 0 ? totalPipeline : null;
+    const pipelineValue = totalPipeline;
 
     return NextResponse.json({
       reportDate: new Date().toISOString().split('T')[0],

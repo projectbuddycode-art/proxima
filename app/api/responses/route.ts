@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDb, initDb } from '@/lib/db';
 import { PipelineOrchestrator } from '@/lib/orchestrator/pipeline';
 import { runResponseCopilot } from '@/lib/ai/agents';
+import { RealProspectFirewall } from '@/lib/verification/firewall';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,10 +11,18 @@ export async function POST(req: Request) {
   const db = getDb();
   const body = await req.json();
 
-  const { prospectId, rawMessage, channel } = body;
+  const { prospectId, rawMessage, channel, isSimulation } = body;
 
   if (!prospectId || !rawMessage) {
     return NextResponse.json({ error: 'prospectId and rawMessage required' }, { status: 400 });
+  }
+
+  // Block simulated response execution in production REAL MODE
+  if (isSimulation && process.env.NODE_ENV === 'production' && process.env.TEST_MODE !== 'true') {
+    return NextResponse.json(
+      { error: 'Simulated responses are disabled in production REAL MODE.' },
+      { status: 403 }
+    );
   }
 
   try {

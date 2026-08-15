@@ -17,6 +17,8 @@ export interface ContactProvenance {
   last_verified: string;
 }
 
+import { RealProspectFirewall } from './firewall';
+
 export class ContactVerificationEngine {
   /**
    * Verifies contact details against public provenance rules.
@@ -30,11 +32,10 @@ export class ContactVerificationEngine {
     isCorroborated = false,
     deliveryConfirmed = false
   ): ContactProvenance | null {
-    if (!value || value.trim() === '' || value.includes('example.com') || value.includes('dummy')) {
+    const cleanVal = RealProspectFirewall.sanitizeContactValue(value);
+    if (!cleanVal) {
       return null; // Zero synthetic fallback allowed in REAL MODE
     }
-
-    const cleanVal = value.trim();
     let level: VerificationLevel = 'LEVEL_1_FOUND_ON_PUBLIC_SOURCE';
 
     if (sourceType === 'official_website' || sourceType === 'official_social') {
