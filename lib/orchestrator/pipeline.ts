@@ -10,6 +10,7 @@ import {
   runOpportunityStrategist,
   runMessageStrategist,
   ResearchOutput,
+  initializeAIProvider
 } from '../ai/agents';
 import { runMultiAgentCrossCheck } from '../ai/panel/cross_check';
 import { initializeAgentRegistry } from '../ai/agents/registry';
@@ -44,6 +45,7 @@ export class PipelineOrchestrator {
    */
   static async runCampaignPipeline(campaignId: string, offset = 0, batchSize = 25): Promise<PipelineResult> {
     const db = getDb();
+    await initializeAIProvider();
     const errors: Array<{ stage: string; error: string; retryable: boolean }> = [];
 
     // Load campaign

@@ -1,6 +1,6 @@
 /**
  * PROXIMA AI Provider Architecture
- * Local Ollama-assisted reasoning with strict zero-fabrication guarantees.
+ * Local Ollama-assisted reasoning and Claude multi-provider interface.
  * Mock AI is strictly prohibited unless explicitly enabled via ALLOW_MOCK_AI=true.
  */
 
@@ -9,6 +9,7 @@ export interface AIProvider {
   testConnection(): Promise<{ ok: boolean; models?: string[]; message?: string }>;
   generateStructuredJSON<T>(prompt: string, systemPrompt?: string): Promise<T>;
   generateText(prompt: string, systemPrompt?: string): Promise<string>;
+  capabilities(): string[];
 }
 
 export class OllamaProvider implements AIProvider {
@@ -19,6 +20,10 @@ export class OllamaProvider implements AIProvider {
   constructor(baseUrl = 'http://127.0.0.1:11434', model = 'qwen2.5-coder:3b') {
     this.baseUrl = (process.env.OLLAMA_BASE_URL || baseUrl).replace(/\/$/, '');
     this.model = process.env.OLLAMA_MODEL || model;
+  }
+
+  capabilities(): string[] {
+    return ['Reasoning', 'Structured Output', 'Local Model Hosting'];
   }
 
   async testConnection(): Promise<{ ok: boolean; models?: string[]; message?: string }> {
@@ -119,11 +124,113 @@ export class OllamaProvider implements AIProvider {
   }
 }
 
+export class ClaudeProvider implements AIProvider {
+  name = 'Claude';
+  apiKey: string;
+  model: string;
+
+  constructor(apiKey: string, model = 'claude-3-5-sonnet-20241022') {
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+
+  capabilities(): string[] {
+    return ['Reasoning', 'Structured Output', 'Tool Orchestration', 'Streaming'];
+  }
+
+  async testConnection(): Promise<{ ok: boolean; models?: string[]; message?: string }> {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'Connection test' }]
+        }),
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (res.status === 401) {
+        return { ok: false, message: 'AUTH_FAILED: Invalid Anthropic API Key.' };
+      }
+      if (!res.ok) {
+        const errorText = await res.text();
+        return { ok: false, message: `Anthropic HTTP Error ${res.status}: ${errorText}` };
+      }
+
+      const models = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'];
+      return { ok: true, models, message: 'Connected successfully to Anthropic Message Endpoint.' };
+    } catch (err: any) {
+      return { ok: false, message: `Connection timed out or failed: ${err.message}` };
+    }
+  }
+
+  async generateStructuredJSON<T>(prompt: string, systemPrompt = ''): Promise<T> {
+    const systemInstruction = systemPrompt 
+      ? systemPrompt + '\nRespond STRICTLY with valid JSON. Do not include any explanation or markdown formatting.'
+      : 'Respond STRICTLY with valid JSON. Do not include any explanation or markdown formatting.';
+
+    const rawText = await this.generateText(prompt, systemInstruction);
+    try {
+      const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson) as T;
+      return { ...parsed, _provider: `claude:${this.model}`, _reasoning_available: true } as unknown as T;
+    } catch (err: any) {
+      console.warn('[CLAUDE PROVIDER] JSON parse warning, raw response was:', rawText);
+      throw new Error(`Invalid JSON format returned by Claude: ${err.message}`);
+    }
+  }
+
+  async generateText(prompt: string, systemPrompt = ''): Promise<string> {
+    const timeoutMs = 30000;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 4096,
+          system: systemPrompt || undefined,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`Claude HTTP ${res.status}: ${await res.text()}`);
+      }
+
+      const data = await res.json();
+      return data.content?.[0]?.text || '';
+    } catch (err: any) {
+      console.error('[CLAUDE PROVIDER] Text generation failure:', err.message);
+      throw err;
+    }
+  }
+}
+
 /**
  * MockProvider: strictly for unit test environments where explicit ALLOW_MOCK_AI=true is configured.
  */
 export class MockProvider implements AIProvider {
   name = 'MockRuleEngine';
+
+  capabilities(): string[] {
+    return ['Reasoning', 'Structured Output', 'Mock Operations'];
+  }
 
   async testConnection() {
     return { ok: true, models: ['mock-rule-engine-v1'], message: 'Mock Rule Engine Active (Explicit Development Mode Only)' };
@@ -133,7 +240,7 @@ export class MockProvider implements AIProvider {
     const lower = (prompt + ' ' + systemPrompt).toLowerCase();
 
     // Response Classification
-    if (lower.includes('classify this prospect message') || lower.includes('response classifier')) {
+    if (lower.includes('classify this prospect message') || lower.includes('response classifier') || lower.includes('response_classification')) {
       if (lower.includes('interested') || lower.includes('what did you have in mind') || lower.includes('tell me more')) {
         return {
           classification: 'INTERESTED',

@@ -1,12 +1,48 @@
-import { AIProvider, OllamaProvider, MockProvider } from './provider';
+import { AIProvider, OllamaProvider, ClaudeProvider, MockProvider } from './provider';
 import { getDb } from '../db';
+import { ProviderCredentialsVault } from '../security/credentials';
 import fs from 'fs';
 import path from 'path';
 
+let activeProviderInstance: AIProvider | null = null;
+
 export function getAIProvider(): AIProvider {
+  if (!activeProviderInstance) {
+    const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+    const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b';
+    activeProviderInstance = new OllamaProvider(baseUrl, model);
+  }
+  return activeProviderInstance;
+}
+
+export function setActiveAIProvider(provider: AIProvider): void {
+  activeProviderInstance = provider;
+}
+
+export async function initializeAIProvider(): Promise<AIProvider> {
+  const db = getDb();
+  try {
+    const cred = await db.queryOneAsync<{ configured_model: string; validation_status: string }>(
+      "SELECT configured_model, validation_status FROM provider_credentials WHERE provider = 'CLAUDE'"
+    );
+
+    if (cred && cred.validation_status === 'AVAILABLE') {
+      const apiKey = await ProviderCredentialsVault.retrieveCredential('CLAUDE');
+      if (apiKey) {
+        const provider = new ClaudeProvider(apiKey, cred.configured_model);
+        setActiveAIProvider(provider);
+        return provider;
+      }
+    }
+  } catch (err: any) {
+    console.warn('[AI REGISTRY] Failed to load provider credentials from DB:', err.message);
+  }
+
   const baseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
   const model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b';
-  return new OllamaProvider(baseUrl, model);
+  const fallback = new OllamaProvider(baseUrl, model);
+  setActiveAIProvider(fallback);
+  return fallback;
 }
 
 function loadKnowledgeContext(): string {

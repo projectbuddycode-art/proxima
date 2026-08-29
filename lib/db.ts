@@ -156,7 +156,8 @@ export class LocalJsonDatabase implements DatabaseAdapter {
       'commander_tasks',
       'commander_workers',
       'execution_events',
-      'approvals'
+      'approvals',
+      'provider_credentials'
     ];
     let changed = false;
     for (const t of tables) {
@@ -446,6 +447,8 @@ export class LocalJsonDatabase implements DatabaseAdapter {
           return applyJoins(rows.find(r => r.id === params[0]));
         }
         if (cleanSql.includes('WHERE key = ?')) return rows.find(r => r.key === params[0]);
+        if (cleanSql.includes('WHERE provider = ?')) return rows.find(r => r.provider === params[0]);
+        if (cleanSql.includes("WHERE provider = 'CLAUDE'")) return rows.find(r => r.provider === 'CLAUDE');
         if (cleanSql.includes('WHERE pairing_code = ?')) return rows.find(r => r.pairing_code === params[0]);
         if (cleanSql.includes('WHERE token_hash = ?')) return rows.find(r => r.token_hash === params[0]);
         if (cleanSql.includes('WHERE bridge_id = ?')) return rows.find(r => r.bridge_id === params[0]);
@@ -657,9 +660,40 @@ export class LocalJsonDatabase implements DatabaseAdapter {
           }
         }
 
+        if (isUpdate && cleanSql.includes('WHERE provider = ?')) {
+          const providerVal = params[params.length - 1];
+          const item = this.data[tableName].find(r => r.provider === providerVal);
+          if (item) {
+            const setPart = cleanSql.match(/SET\s+(.+?)\s+WHERE/i);
+            if (setPart) {
+              const assignments = setPart[1].split(',');
+              let paramIdx = 0;
+              assignments.forEach(assignment => {
+                const parts = assignment.split('=');
+                if (parts.length === 2) {
+                  const fieldName = parts[0].trim().toLowerCase();
+                  const rightSide = parts[1].trim();
+                  if (rightSide === '?') {
+                    item[fieldName] = params[paramIdx++];
+                  }
+                }
+              });
+            }
+            this.saveData();
+            return { changes: 1, lastInsertRowid: 0 };
+          }
+        }
+
         if (isDelete && cleanSql.includes('WHERE id = ?')) {
           const idVal = params[0];
           this.data[tableName] = this.data[tableName].filter(r => r.id !== idVal);
+          this.saveData();
+          return { changes: 1, lastInsertRowid: 0 };
+        }
+
+        if (isDelete && (cleanSql.includes('WHERE provider = ?') || cleanSql.includes("WHERE provider = 'CLAUDE'"))) {
+          const providerVal = cleanSql.includes("WHERE provider = 'CLAUDE'") ? 'CLAUDE' : params[0];
+          this.data[tableName] = this.data[tableName].filter(r => r.provider !== providerVal);
           this.saveData();
           return { changes: 1, lastInsertRowid: 0 };
         }

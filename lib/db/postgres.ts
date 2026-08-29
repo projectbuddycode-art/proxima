@@ -47,7 +47,8 @@ const ALLOWED_TABLES = new Set([
   'commander_tasks',
   'commander_workers',
   'execution_events',
-  'approvals'
+  'approvals',
+  'provider_credentials'
 ]);
 
 function convertSqlPlaceholders(sql: string): string {

@@ -16,7 +16,7 @@ export interface AIResult<T> {
   reasoning_available: boolean;
   data?: T;
   error?: string;
-  source: 'DETERMINISTIC_ENGINE' | 'INTERNET_BRIDGE' | 'OLLAMA_LOCAL';
+  source: 'DETERMINISTIC_ENGINE' | 'INTERNET_BRIDGE' | 'OLLAMA_LOCAL' | 'CLAUDE_CLOUD';
 }
 
 export class AICapabilityRouter {
@@ -69,14 +69,15 @@ export class AICapabilityRouter {
       }
     }
 
-    // Reasoning task requiring Ollama
-    console.log(`[AI ROUTER] Routing reasoning task: "${taskType}" to local Ollama daemon.`);
+    // Reasoning task requiring active AI provider
     const ai = getAIProvider();
+    const sourceVal = ai.name === 'Claude' ? 'CLAUDE_CLOUD' : 'OLLAMA_LOCAL';
+    console.log(`[AI ROUTER] Routing reasoning task: "${taskType}" to active AI provider: ${ai.name}.`);
     
     // Check connection first
     const conn = await ai.testConnection();
     if (!conn.ok) {
-      console.warn(`[AI ROUTER] Ollama daemon is offline or unreachable.`);
+      console.warn(`[AI ROUTER] Active AI provider (${ai.name}) is offline or unreachable: ${conn.message}`);
       if (process.env.ALLOW_MOCK_AI === 'true') {
         try {
           const data = await ai.generateStructuredJSON<T>(JSON.stringify(payload), `Task: ${taskType}`);
@@ -84,7 +85,7 @@ export class AICapabilityRouter {
             success: true,
             reasoning_available: false,
             data,
-            source: 'OLLAMA_LOCAL'
+            source: sourceVal
           };
         } catch (e: any) {
           // Fall through
@@ -93,8 +94,8 @@ export class AICapabilityRouter {
       return {
         success: false,
         reasoning_available: false,
-        error: 'AI reasoning unavailable: Ollama is currently offline. All deterministic functions remain active.',
-        source: 'OLLAMA_LOCAL'
+        error: `AI reasoning unavailable: ${ai.name} provider is offline or credentials failed.`,
+        source: sourceVal
       };
     }
 
@@ -107,14 +108,14 @@ export class AICapabilityRouter {
         success: true,
         reasoning_available: true,
         data,
-        source: 'OLLAMA_LOCAL'
+        source: sourceVal
       };
     } catch (err: any) {
       return {
         success: false,
         reasoning_available: false,
-        error: err.message || 'Ollama text generation failed',
-        source: 'OLLAMA_LOCAL'
+        error: err.message || 'AI text generation failed',
+        source: sourceVal
       };
     }
   }
