@@ -55,9 +55,14 @@ export class PublicWebDiscoveryProvider implements DiscoveryProvider {
       if (response.ok) {
         const html = await response.text();
         
+        // Detect DDG structure to see if HTML template has changed or was blocked
+        const hasDdgStructure = html.includes('duckduckgo') || html.includes('result__') || html.includes('links_main') || html.includes('ddg');
+        if (!hasDdgStructure && html.length > 0 && !html.includes('No results')) {
+          throw new Error('PublicWeb provider parsing failure: DuckDuckGo search HTML structure has changed.');
+        }
+
         // Extract real result links and titles from public HTML search results
         const linkMatches = html.matchAll(/<a[^>]+class="[^"]*result__url[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi);
-        const titleMatches = [...html.matchAll(/<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
         
         let idx = 0;
         for (const match of linkMatches) {
@@ -80,16 +85,21 @@ export class PublicWebDiscoveryProvider implements DiscoveryProvider {
             sourceId: `web_${norm.domain}`,
             businessName: candidateName,
             category: cleanCategory,
-            address: `${cleanCity}, India`,
-            city: cleanCity,
+            address: undefined, // NEVER assign city as company location without evidence
+            city: undefined,    // NEVER assign city as company location without evidence
             country: 'India',
-            website: norm.url,
+            website: undefined, // NEVER treat discovered search URL as verified website automatically
             sourceUrl: norm.url,
+            discovered_name: candidateName,
+            discovered_domain: norm.domain,
+            discovered_url: norm.url,
+            discovery_source: 'PublicWeb',
+            discovery_query: `${cleanCategory} ${cleanCity} official website contact`,
             evidence: {
-              claim: `Discovered active commercial domain on public web search index: ${norm.url}`,
+              claim: `Discovered candidate domain on public web search index matching query: ${cleanCategory} ${cleanCity}`,
               source: 'Public Web Search Index',
               sourceUrl: norm.url,
-              confidence: 80
+              confidence: 50 // Candidate discovery starts with low confidence
             },
             rawSourceData: {
               domain: norm.domain,

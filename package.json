@@ -9,7 +9,9 @@
     "start": "next start",
     "db:init": "tsx lib/db.ts",
     "db:migrate": "tsx lib/db/migrate.ts",
-    "test": "tsx tests/firewall.test.ts && tsx tests/forensic_audit.test.ts && tsx tests/commander_engine.test.ts && tsx tests/connections.test.ts && tsx tests/revenue_intelligence.test.ts && tsx tests/phase2.test.ts && tsx tests/system.test.ts"
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "test": "tsx tests/firewall.test.ts && tsx tests/forensic_audit.test.ts && tsx tests/commander_engine.test.ts && tsx tests/connections.test.ts && tsx tests/revenue_intelligence.test.ts && tsx tests/phase2.test.ts && tsx tests/system.test.ts && tsx tests/real_data_discovery.test.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -26,6 +28,8 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.5",
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.9",
     "tsx": "^4.17.0",

@@ -107,6 +107,11 @@ export class OpenStreetMapProvider implements DiscoveryProvider {
             website: undefined,
             phone: undefined,
             sourceUrl,
+            discovered_name: rawName,
+            discovered_domain: undefined,
+            discovered_url: sourceUrl,
+            discovery_source: 'OpenStreetMap',
+            discovery_query: queryStr,
             evidence: {
               claim: `Verified physical location indexed on OpenStreetMap: ${rawName} (${catName})`,
               source: 'OpenStreetMap Nominatim Public Registry',

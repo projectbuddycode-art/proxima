@@ -28,6 +28,8 @@ export interface EvidenceRecord {
   payload?: Record<string, any> | string | null;
   content_hash: string;
   created_at: string;
+  persisted?: boolean;
+  persistence_error?: string;
 }
 
 /**

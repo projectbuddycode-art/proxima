@@ -153,4 +153,48 @@ export class RealProspectFirewall {
     }
     return val.trim();
   }
+
+  /**
+   * Enforces that a prospect qualifies strictly with backing evidence, domain verification, and source URLs.
+   */
+  static validateQualified(prospect: any): boolean {
+    if (!prospect) return false;
+
+    // 1. Company Identity evidence check
+    if (!prospect.company_id) return false;
+
+    // 2. Source URL check
+    if (!prospect.source_url) return false;
+
+    // 3. Observed timestamp
+    if (!prospect.created_at) return false;
+
+    // 4. Verification state check
+    if (prospect.verification_status === 'UNVERIFIED' || prospect.verification_status === 'INVALID') {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Enforces additional readiness constraints before outbound outreach triggers.
+   */
+  static validateOutreachReady(prospect: any): boolean {
+    if (!this.validateQualified(prospect)) return false;
+
+    // 1. Service relevance and opportunity evidence check
+    if (!prospect.opportunity_score || prospect.opportunity_score < 40) return false;
+
+    // 2. Fresh signal check
+    if (!prospect.priority_score || prospect.priority_score < 30) return false;
+
+    // 3. Approved contact method available
+    const hasValidEmail = prospect.email && prospect.email_verification_status !== 'INVALID';
+    const hasValidPhone = prospect.phone && prospect.phone_verification_status !== 'INVALID';
+    
+    if (!hasValidEmail && !hasValidPhone) return false;
+
+    return true;
+  }
 }

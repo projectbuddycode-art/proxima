@@ -258,4 +258,85 @@ export class WebsiteIntelligenceEngine {
       error
     };
   }
+
+  /**
+   * Safe Redirect URL follow and Domain/Identity verification check
+   */
+  static async verifyOfficialDomain(
+    targetUrl: string,
+    candidateName: string
+  ): Promise<{
+    verification_status: 'VERIFIED' | 'LIKELY' | 'UNVERIFIED' | 'REJECTED';
+    canonical_url: string;
+    company_name?: string;
+    evidence: string;
+  }> {
+    const normalized = normalizeCanonicalUrl(targetUrl);
+    if (!normalized) {
+      return {
+        verification_status: 'REJECTED',
+        canonical_url: targetUrl,
+        evidence: 'Invalid canonical URL formatting.'
+      };
+    }
+
+    try {
+      const response = await fetch(normalized.url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 (Proxima Verification Router)'
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(8000)
+      });
+
+      const finalUrl = response.url || normalized.url;
+      const htmlContent = response.ok ? await response.text() : '';
+
+      if (!response.ok) {
+        return {
+          verification_status: 'UNVERIFIED',
+          canonical_url: finalUrl,
+          evidence: `Website responded with HTTP ${response.status}. Domain could not be verified.`
+        };
+      }
+
+      // 1. Inspect title
+      const titleMatch = htmlContent.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const pageTitle = titleMatch ? titleMatch[1].trim() : '';
+
+      // 2. Organization Schema Check
+      const hasOrgSchema = htmlContent.includes('"@type": "Organization"') || htmlContent.includes('"@type":"Organization"');
+
+      // Compare candidateName against page title & markup tokens
+      const cleanName = candidateName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanTitle = pageTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      let score = 0;
+      if (cleanTitle.includes(cleanName) || cleanName.includes(cleanTitle)) {
+        score += 50;
+      }
+      if (hasOrgSchema) {
+        score += 30;
+      }
+      if (htmlContent.toLowerCase().includes(candidateName.toLowerCase())) {
+        score += 20;
+      }
+
+      const status = score >= 70 ? 'VERIFIED' : score >= 30 ? 'LIKELY' : 'UNVERIFIED';
+      const evidenceStr = `Domain redirection verified: ${normalized.url} -> ${finalUrl}. Page Title: "${pageTitle}". Org Schema: ${hasOrgSchema}. Alignment Score: ${score}/100.`;
+
+      return {
+        verification_status: status,
+        canonical_url: finalUrl,
+        company_name: pageTitle || candidateName,
+        evidence: evidenceStr
+      };
+    } catch (err: any) {
+      return {
+        verification_status: 'UNVERIFIED',
+        canonical_url: normalized.url,
+        evidence: `Domain check timed out or failed: ${err.message}`
+      };
+    }
+  }
 }

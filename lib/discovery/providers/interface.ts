@@ -25,6 +25,11 @@ export interface DiscoveryCandidate {
     confidence: number;
   };
   rawSourceData?: unknown;
+  discovered_name?: string;
+  discovered_domain?: string;
+  discovered_url?: string;
+  discovery_source?: string;
+  discovery_query?: string;
 }
 
 export interface DiscoveryProviderResult {

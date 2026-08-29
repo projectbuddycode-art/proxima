@@ -20,6 +20,8 @@ export interface ApprovalRecord {
   comments?: string;
   created_at: string;
   updated_at: string;
+  persisted?: boolean;
+  persistence_error?: string;
 }
 
 export class HumanApprovalSystem {
@@ -62,11 +64,18 @@ export class HumanApprovalSystem {
           record.updated_at
         ]
       );
+      return {
+        ...record,
+        persisted: true
+      };
     } catch (e: any) {
       console.warn('[APPROVALS] Request insertion failed:', e.message);
+      return {
+        ...record,
+        persisted: false,
+        persistence_error: e.message
+      };
     }
-
-    return record;
   }
 
   /**

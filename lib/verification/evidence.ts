@@ -87,11 +87,18 @@ export class EvidenceEngine {
           record.created_at
         ]
       );
+      return {
+        ...record,
+        persisted: true
+      };
     } catch (err: any) {
       console.warn('[EVIDENCE] Record error in prospect_evidence table:', err.message);
+      return {
+        ...record,
+        persisted: false,
+        persistence_error: err.message
+      };
     }
-
-    return record;
   }
 
   /**

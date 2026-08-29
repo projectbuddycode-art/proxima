@@ -18,6 +18,7 @@ import { ContactVerificationEngine } from '../verification/contacts';
 import { SecurityIntelligenceAgent } from '../ai/agents/security';
 import { RealProspectFirewall } from '../verification/firewall';
 import { CanonicalDeduplicationEngine } from '../verification/dedup';
+import { EvidenceEngine } from '../verification/evidence';
 import { buildScoreBreakdown } from '../scoring/engine';
 import { ProximaOperationError } from '../domain/errors';
 import { generateProspectId } from '../domain/prospect';
@@ -177,17 +178,37 @@ export class PipelineOrchestrator {
   ): Promise<{ duplicate: boolean; prospect: any | null }> {
     const db = getDb();
 
-    // Firewall check
-    if (!RealProspectFirewall.validateRealProspect({
-      company_name: candidate.businessName,
-      website: candidate.website,
-      email: candidate.email,
-      phone: candidate.phone
-    })) {
-      console.warn(`[FIREWALL REJECT] ${candidate.businessName}`);
-      return { duplicate: false, prospect: null };
+    // Start of pipeline
+    let pipelineStage = 'DISCOVERED';
+
+    // ── IDENTITY_VERIFYING & WEBSITE_VERIFIED ────────────────────────
+    pipelineStage = 'IDENTITY_VERIFYING';
+    const domainCheck = candidate.sourceUrl 
+      ? await WebsiteIntelligenceEngine.verifyOfficialDomain(candidate.sourceUrl, candidate.businessName)
+      : { verification_status: 'UNVERIFIED' as const, canonical_url: '', company_name: candidate.businessName, evidence: 'No URL' };
+
+    let officialWebsite = null;
+    let identityVerificationStatus = 'UNVERIFIED';
+
+    if (domainCheck.verification_status === 'VERIFIED' || domainCheck.verification_status === 'LIKELY') {
+      pipelineStage = 'WEBSITE_VERIFIED';
+      officialWebsite = domainCheck.canonical_url;
+      identityVerificationStatus = domainCheck.verification_status;
     }
 
+    // ── LOCATION_VERIFYING ───────────────────────────────────────────
+    pipelineStage = 'LOCATION_VERIFYING';
+    // If the location matches a physical address or mapping listing, verified. Otherwise set to UNVERIFIED.
+    const isLocationVerified = candidate.source === 'OpenStreetMap' && candidate.address;
+    const locationStatus = isLocationVerified ? 'VERIFIED' : 'UNVERIFIED';
+    const companyLocation = isLocationVerified 
+      ? (candidate.address || `${candidate.city}, India`)
+      : 'UNVERIFIED'; // Search location is not company location
+
+    // ── CONTACT_ENRICHMENT & CONTACT_VERIFICATION ──────────────────
+    pipelineStage = 'CONTACT_ENRICHMENT';
+    pipelineStage = 'CONTACT_VERIFICATION';
+    
     // Contact verification
     const verifiedContact = ContactVerificationEngine.verifyContact(
       'email',
@@ -199,10 +220,11 @@ export class PipelineOrchestrator {
     );
 
     // ── DEDUPLICATION ───────────────────────────────────────────────
+    pipelineStage = 'DEDUPLICATION';
     let companyMatch = await CanonicalDeduplicationEngine.findCanonicalCompany({
       company_name: candidate.businessName,
-      website: candidate.website,
-      city: candidate.city || campaign.location || 'Bangalore',
+      website: candidate.website || officialWebsite || undefined,
+      city: candidate.city,
       phone: candidate.phone,
       osm_id: candidate.sourceId
     });
@@ -218,10 +240,6 @@ export class PipelineOrchestrator {
 
     // ── CREATE COMPANY ──────────────────────────────────────────────
     const companyId = generateCompanyId();
-    const companyLocation = candidate.city
-      ? `${candidate.city}, ${candidate.country || 'India'}`
-      : campaign.location || 'Bangalore';
-
     await db.executeAsync(`
       INSERT INTO companies (id, name, website, domain, industry, location, company_summary,
         decision_makers_json, products_services_json, source, source_id, normalized_name, normalized_domain)
@@ -229,11 +247,11 @@ export class PipelineOrchestrator {
     `, [
       companyId,
       candidate.businessName,
-      candidate.website || null,
+      officialWebsite || candidate.website || null,
       candidate.normalizedDomain || null,
       candidate.category || campaign.industry,
       companyLocation,
-      `Operating business discovered via ${candidate.source}`,
+      `Operating business discovered via ${candidate.source}. Location status: ${locationStatus}`,
       JSON.stringify([{
         name: candidate.contactName || 'Business Contact',
         role: candidate.contactRole || 'Director / Founder',
@@ -248,12 +266,27 @@ export class PipelineOrchestrator {
     ]);
 
     const company = await db.queryOneAsync('SELECT * FROM companies WHERE id = ?', [companyId]);
+    if (!company) {
+      throw new Error(`Failed to retrieve newly created company ${companyId}`);
+    }
+
+    // Record official domain verification evidence
+    const evid = await EvidenceEngine.recordEvidence({
+      entity_type: 'company',
+      entity_id: companyId,
+      claim_type: 'domain_verification',
+      source: 'Safe Redirect Probe',
+      source_url: candidate.sourceUrl || null,
+      confidence: domainCheck.verification_status === 'VERIFIED' ? 90 : 50,
+      payload: domainCheck.evidence
+    });
 
     // ── WEBSITE AUDIT & OPPORTUNITY DISCOVERY ───────────────────────
     let auditResult = null;
-    if (candidate.website && candidate.website.startsWith('http')) {
+    const auditUrl = officialWebsite || candidate.website;
+    if (auditUrl && auditUrl.startsWith('http')) {
       try {
-        auditResult = await WebsiteIntelligenceEngine.auditWebsite(candidate.website, companyId);
+        auditResult = await WebsiteIntelligenceEngine.auditWebsite(auditUrl, companyId);
       } catch (e: any) {
         console.warn('[PIPELINE] Website audit warning:', e.message);
       }
@@ -261,7 +294,7 @@ export class PipelineOrchestrator {
 
     // ── SECURITY OBSERVATION ────────────────────────────────────────
     try {
-      const secObservation = await SecurityIntelligenceAgent.observeDomain(candidate.website || '');
+      const secObservation = await SecurityIntelligenceAgent.observeDomain(auditUrl || '');
       await db.executeAsync(
         `INSERT INTO security_observations (id, target_domain, prospect_id, https_enabled, security_headers_present,
           missing_security_headers, public_tech_signature, robots_txt_status, sitemap_status,
@@ -306,7 +339,7 @@ export class PipelineOrchestrator {
       prospect: {
         company_name: candidate.businessName,
         industry: candidate.category,
-        location: candidate.city || campaign.location,
+        location: companyLocation,
         email: verifiedContact?.value,
         email_verification_status: verifiedContact?.verification_level || 'UNKNOWN',
         phone: candidate.phone,
@@ -322,10 +355,33 @@ export class PipelineOrchestrator {
       } : undefined
     });
 
-    // ── CREATE PROSPECT ─────────────────────────────────────────────
+    // ── QUALIFIED & OUTREACH READY firewall tests ───────────────────
     const prospectId = generateProspectId();
-    const prospectStatus = crossCheck.overall_passed ? 'VERIFIED' : 'PARTIALLY_VERIFIED';
-    const pipelineStage = crossCheck.overall_passed ? 'QUALIFIED' : 'PARTIALLY_VERIFIED';
+    const observedAt = new Date().toISOString();
+    
+    // Construct temp prospect for firewall checks
+    const tempProspect = {
+      company_id: companyId,
+      source_url: candidate.sourceUrl,
+      created_at: observedAt,
+      verification_status: identityVerificationStatus,
+      opportunity_score: scoreBreakdown.opportunity.score,
+      priority_score: scoreBreakdown.priority,
+      email: verifiedContact?.value,
+      email_verification_status: verifiedContact ? 'VERIFIED' : 'INVALID',
+      phone: candidate.phone,
+      phone_verification_status: candidate.phone ? 'VERIFIED' : 'INVALID'
+    };
+
+    if (RealProspectFirewall.validateOutreachReady(tempProspect) && evid.persisted) {
+      pipelineStage = 'OUTREACH_READY';
+    } else if (RealProspectFirewall.validateQualified(tempProspect) && evid.persisted) {
+      pipelineStage = 'QUALIFIED';
+    } else {
+      pipelineStage = 'CONTACT_VERIFICATION';
+    }
+
+    const prospectStatus = pipelineStage === 'QUALIFIED' || pipelineStage === 'OUTREACH_READY' ? 'VERIFIED' : 'PARTIALLY_VERIFIED';
 
     await db.executeAsync(`
       INSERT INTO prospects (
@@ -364,7 +420,7 @@ export class PipelineOrchestrator {
       JSON.stringify(scoreBreakdown),
       prospectStatus,
       'ENRICHED',
-      verifiedContact ? 'SOURCE_FOUND' : 'UNKNOWN',
+      identityVerificationStatus,
       pipelineStage,
       JSON.stringify(resOutput),
       JSON.stringify(fitOutput),

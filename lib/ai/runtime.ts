@@ -26,7 +26,7 @@ export class AgentRuntimeSystem {
   /**
    * Spawns a new agent execution run
    */
-  static async startRun(agentId: string, input?: any, workerId = 'default_worker'): Promise<string> {
+  static async startRun(agentId: string, input?: any, workerId = 'default_worker'): Promise<{ run_id: string; persisted: boolean; persistence_error?: string }> {
     const db = getDb();
     const runId = `run_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const startedAt = new Date().toISOString();
@@ -44,11 +44,11 @@ export class AgentRuntimeSystem {
       );
 
       await this.logEvent(runId, agentId, 'START', `Agent run started for ${agentId}`);
+      return { run_id: runId, persisted: true };
     } catch (e: any) {
       console.warn('[AGENT RUNTIME] Start run database logging failed:', e.message);
+      return { run_id: runId, persisted: false, persistence_error: e.message };
     }
-
-    return runId;
   }
 
   /**
